@@ -1,12 +1,14 @@
 clear all
 close all
-addpath('../..');
 
-load('gps.mat');
+addpath('rotations');
+addpath('optimisation');
+
+load('data/gps.mat');
 if size(gps,2)==5
     B = []
-    addpath('../../GPS_CoordinateXforms')
-    addpath('../../igrf')
+    addpath('GPS_CoordinateXforms')
+    addpath('igrf')
 
     ngps=size(gps,1);
     [x,y,utmzone] = wgs2utm(gps(:,3),gps(:,2),43);
@@ -26,7 +28,7 @@ B = gps(:,9:11);
 Bmat = inv([B(1,1) -B(1,2);B(1,2) B(1,1)]);
 
 
-load('dataspd.mat');
+load('data/dataspd.mat');
 gps = gps(:,1:3);
 acou_surface=acou(find(acou(:,13)==0),:);
 for i=1:size(gps,1)
@@ -171,7 +173,7 @@ preload_titles{15} = 'pitch';
 preload_titles{16} = 'yaw';
 preload_titles{17} = 'V';   
 preload_titles{18} = 'dive_status';   
-save -mat preload_trajet.mat preload preload_titles
+save -mat data/preload_trajet.mat preload preload_titles
 
 Mb = zeros(size(Mn));
 for i=1:N

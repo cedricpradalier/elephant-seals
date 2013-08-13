@@ -1,10 +1,11 @@
 clear all
 close all
-addpath('../..');
-addpath('../../optimisation');
+addpath('igrf');
+addpath('rotation');
+addpath('optimisation');
 
-load('gps.mat');
-load('preload.mat');
+load('data/gps.mat');
+load('data/preload.mat');
 
 N = size(preload,1);
 ts = preload(1:N,1);
@@ -115,4 +116,4 @@ for i=1:N
     RPY(i,:) =  SpinCalc('DCMtoEA321',state{i}.R,1,0) ;
 end
 
-% save -mat state.mat state common obs
+% save -mat data/state.mat state common obs
