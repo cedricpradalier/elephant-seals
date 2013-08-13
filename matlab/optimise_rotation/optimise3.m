@@ -1,7 +1,7 @@
 clear all
 close all
 addpath('igrf');
-addpath('rotation');
+addpath('rotations');
 addpath('optimisation');
 
 load('data/gps.mat');

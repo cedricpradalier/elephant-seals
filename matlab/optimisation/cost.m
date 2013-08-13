@@ -49,8 +49,8 @@ function [F,W,J] = cost(common,state,obs,problem)
             end
             F(eq:eq+n_eq-1) = f;
             if nargout > 1
-                assert(~iscomplex(jc));
-                assert(~iscomplex(js));
+                assert(isreal(jc));
+                assert(isreal(js));
                 if problem.common_dof
                     J(eq:eq+n_eq-1, 1:problem.common_dof) = jc;
                 end
@@ -81,8 +81,8 @@ function [F,W,J] = cost(common,state,obs,problem)
             end
             F(eq:eq+n_eq-1) = f;
             if nargout > 1
-                assert(~iscomplex(jc));
-                assert(~iscomplex(js));
+                assert(isreal(jc));
+                assert(isreal(js));
                 if problem.common_dof
                     J(eq:eq+n_eq-1, 1:problem.common_dof) = jc;
                 end
@@ -112,8 +112,8 @@ function [F,W,J] = cost(common,state,obs,problem)
         end
         F(eq:eq+n_eq-1) = f;
         if nargout > 1
-            assert(~iscomplex(jc));
-            assert(~iscomplex(j));
+            assert(isreal(jc));
+            assert(isreal(j));
             if problem.common_dof
                 J(eq:eq+n_eq-1, 1:problem.common_dof) = jc;
             end
@@ -143,9 +143,9 @@ function [F,W,J] = cost(common,state,obs,problem)
         end
         F(eq:eq+n_eq-1) = f;
         if nargout > 1
-            assert(~iscomplex(jc));
-            assert(~iscomplex(j1));
-            assert(~iscomplex(j2));
+            assert(isreal(jc));
+            assert(isreal(j1));
+            assert(isreal(j2));
             if problem.common_dof
                 J(eq:eq+n_eq-1, 1:problem.common_dof) = jc;
             end
