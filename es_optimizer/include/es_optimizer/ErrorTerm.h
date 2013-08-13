@@ -1,13 +1,13 @@
 #ifndef ERROR_TERM_H
 #define ERROR_TERM_H
 
-#include <Eigen/Core.h>
+#include <Eigen/Dense>
 
 
 class StateDescription {
     public:
         StateDescription() {}
-        ~virtual StateDescription() {}
+        virtual ~StateDescription() {}
         virtual size_t getDimension() = 0;
 
         virtual void step(const Eigen::VectorXf & delta);

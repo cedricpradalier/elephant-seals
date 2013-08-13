@@ -16,6 +16,21 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 #set the default path for built libraries to the "lib" directory
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
+# eigen 2 or 3
+find_path(EIGEN_INCLUDE_DIR Eigen/Core
+	/usr/local/include/eigen3
+	/usr/local/include/eigen2
+	/usr/local/include/eigen
+	/usr/include/eigen3
+	/usr/include/eigen2
+	/usr/include/eigen
+	/opt/ros/diamondback/stacks/geometry/eigen/include
+)
+
+# include all libs so far
+include_directories(${EIGEN_INCLUDE_DIR} ${Boost_INCLUDE_DIRS})
+
+
 #uncomment if you have defined messages
 #rosbuild_genmsg()
 #uncomment if you have defined services
@@ -26,5 +41,5 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 #target_link_libraries(${PROJECT_NAME} another_library)
 #rosbuild_add_boost_directories()
 #rosbuild_link_boost(${PROJECT_NAME} thread)
-#rosbuild_add_executable(example examples/example.cpp)
+rosbuild_add_executable(optimise_rotation src/optimise_rotation.cpp)
 #target_link_libraries(example ${PROJECT_NAME})

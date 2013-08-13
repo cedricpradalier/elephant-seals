@@ -10,6 +10,7 @@
   <url>http://ros.org/wiki/es_optimizer</url>
   <depend package="roscpp"/>
   <depend package="tf"/>
+  <depend package="cgnuplot"/>
 
 </package>
 

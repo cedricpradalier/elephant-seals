@@ -8,11 +8,11 @@ load('data/gps.mat');
 load('data/preload.mat');
 
 N = size(preload,1);
-ts = preload(1:N,1);
-A = preload(1:N,2:4);
-M = preload(1:N,5:7);
-depth = preload(1:N,8);
-RPY = preload(1:N,14:16);
+ts = preload(1:N,1) + preload(1:N,2);
+A = preload(1:N,3:5);
+M = preload(1:N,6:8);
+depth = preload(1:N,9);
+RPY = preload(1:N,15:17);
 
 t = (ts - ts(1))*24*3600;
 

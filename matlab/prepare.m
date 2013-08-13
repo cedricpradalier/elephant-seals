@@ -153,7 +153,8 @@ end
 
 X=cumsum(vdt);X(:,3) = depth;
 
-preload = [data(:,1), data(:,7:9), data(:,4:6), depth, vel, has_vel, X, roll, pitch, yaw, vel_all, dive];
+day = floor(data(:,1));
+preload = [day, (data(:,1)-day), data(:,7:9), data(:,4:6), depth, vel, has_vel, X, roll, pitch, yaw, vel_all, dive];
 preload_titles ={};
 preload_titles{1} = 'datenum';
 preload_titles{2} = 'Ax';
@@ -174,6 +175,7 @@ preload_titles{16} = 'yaw';
 preload_titles{17} = 'V';   
 preload_titles{18} = 'dive_status';   
 save -mat data/preload_trajet.mat preload preload_titles
+save -ascii data/preload_mat.txt preload
 
 Mb = zeros(size(Mn));
 for i=1:N

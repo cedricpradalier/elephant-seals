@@ -1,8 +1,13 @@
 #ifndef OPTIMISATION_PROBLEM_H
 #define OPTIMISATION_PROBLEM_H
 
+#define EIGEN_YES_I_KNOW_SPARSE_MODULE_IS_NOT_STABLE_YET
+
+#include <Eigen/Sparse>
+#include <Eigen/SparseQR>
+
 #include <boost/shared_ptr.hpp>
-#include "elephants/ErrorTerm.h"
+#include "es_optimizer/ErrorTerm.h"
 
 template <class Common, class State, class Observation>
 class OptimisationProblem
@@ -28,7 +33,7 @@ class OptimisationProblem
         typedef Eigen::SparseMatrix<float> SpMat; // declares a column-major sparse matrix type of double
 
         Eigen::VectorXf F;
-        SpMat W, J;
+        SpMat W, J, I;
 
     public:
         OptimisationProblem() {
@@ -56,6 +61,10 @@ class OptimisationProblem
             F = Eigen::VectorXf(nEq);
             W = SpMat(nEq,nEq);
             J = SpMat(nEq,stateSize);
+            I = SpMat(stateSize,stateSize);
+            for (size_t i=0;i<stateSize;i++) {
+                I.insert(i,i) = 1;
+            }
         }
 
         void computeCandidateState(const Eigen::VectorXf & delta) {
@@ -70,8 +79,6 @@ class OptimisationProblem
         void optimise() {
             double mu = 1.0;
             double scale = 1.1;
-            SpMat I(stateSize,stateSize);
-            I.setIdentity();
             while (mu < 20.0) {
                 updateError();
                 SpMat JW = J.transpose() * W;
@@ -79,14 +86,19 @@ class OptimisationProblem
 
                 while (mu < 20.0) {
                     // Solving:
+                    Eigen::VectorXf delta;
                     SpMat A = JW * J + mu * I;
-                    Eigen::SimplicialCholesky<SpMat> chol(A);  // performs a Cholesky factorization of A
-                    Eigen::VectorXf delta = chol.solve(JW * F);         // use the factorization to solve for the given right hand side
+                    SparseQR<SpMat > solver;
+                    solver.compute(A);
+                    assert(solver.info()==Success);
+                    delta = solver.solve(JW * F);
+                    assert(solver.info()==Success);
                     computeCandidateState(delta);
                     double newNorm = computeCandidateNorm();
                     if (newNorm < currentNorm) {
                         states = candidateStates;
                         common = candidateCommon;
+                        this->reportProgress();
                         mu /= scale;
                         break;
                     } else {
@@ -218,6 +230,8 @@ class OptimisationProblem
                 eqIndex += oe->getDimension();
             }
         }
+
+        virtual void reportProgress() {}
 
 };
 
