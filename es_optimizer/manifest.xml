@@ -1,0 +1,16 @@
+<package>
+    <description brief="es_optimizer">
+
+     elephants
+
+  </description>
+  <author>Cedric Pradalier</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/es_optimizer</url>
+  <depend package="roscpp"/>
+  <depend package="tf"/>
+
+</package>
+
+
