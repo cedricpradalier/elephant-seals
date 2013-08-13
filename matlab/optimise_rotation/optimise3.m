@@ -7,7 +7,7 @@ addpath('optimisation');
 load('data/gps.mat');
 load('data/preload.mat');
 
-N = size(preload,1);
+N = 1500; % size(preload,1);
 ts = preload(1:N,1) + preload(1:N,2);
 A = preload(1:N,3:5);
 M = preload(1:N,6:8);
@@ -44,6 +44,16 @@ problem.f_delta={@cont_propulsion_cal};
 problem.f_delta={};
 problem.f_async={};
 problem.f_async2={};
+
+Ap = zeros(N,3); Bp = zeros(N,3);
+for i=1:N
+    Ap(i,:) = (state{i}.R * obs{i}.A - [0;0;common.k_depth]*state{i}.depth)';
+    Bp(i,:) = (state{i}.R * diag(common.Bscale) * obs{i}.B )';
+end
+figure(1); plot(t,Ap(:,1),'b',t,Ap(:,2),'r',t,Ap(:,3),'g');
+figure(2); plot(t,Bp(:,1),'b',t,Bp(:,2),'r',t,Bp(:,3),'g');
+drawnow();
+pause
 
 mu = 1;
 scale = 1.1;
