@@ -29,7 +29,7 @@ Bmat = inv([B(1,1) -B(1,2);B(1,2) B(1,1)]);
 
 
 load('data/dataspd.mat');
-gps = gps(:,1:3);
+% gps = gps(:,1:3);
 acou_surface=acou(find(acou(:,13)==0),:);
 for i=1:size(gps,1)
     [v,w] = min(abs(acou_surface(:,1)-gps(i,1)));
@@ -47,6 +47,7 @@ end
 idx = find(gps(:,4)>0);
 data = acou(gps(idx(1),4):gps(idx(2),4),:);
 gps = gps(idx(1):idx(2),:);
+gps(:,4) = gps(:,4) - gps(1,4) + 1;
 disp 'loaded core data'
 
 N = size(data,1)
@@ -177,6 +178,8 @@ preload_titles{18} = 'V';
 preload_titles{19} = 'dive_status';   
 save -mat data/preload_trajet.mat preload preload_titles
 save -ascii data/preload_mat.txt preload
+gps2 = [floor(gps(:,1)) (gps(:,1)-floor(gps(:,1))) gps(:,2:end)];
+save -ascii data/gps_mat.txt gps2
 
 Mb = zeros(size(Mn));
 for i=1:N

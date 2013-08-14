@@ -17,15 +17,16 @@ namespace cerise {
         // common_parameters: 4D [ magnetometer scale: 3, buoyancy gain: 1]
         template <typename T>
             bool operator()(const T* const common_parameters,
-                    const T* const movement_parameters,
+                    const T* const rotation,
+                    const T* const propulsion,
                     T* residuals) const {
                 // camera[0,1,2] are the angle-axis rotation.
                 T corrected_body_accel[3];
-                corrected_body_accel[0] = T(a_x) - movement_parameters[3];
+                corrected_body_accel[0] = T(a_x) - propulsion[0];
                 corrected_body_accel[1] = T(a_y);
                 corrected_body_accel[2] = T(a_z);
                 T p[3];
-                ceres::AngleAxisRotatePoint(movement_parameters, corrected_body_accel, p);
+                ceres::AngleAxisRotatePoint(rotation, corrected_body_accel, p);
 
                 // The error is the difference between the predicted and a position.
                 residuals[0] = T(weight)*(p[0] - T(G[0]));
@@ -50,7 +51,7 @@ namespace cerise {
         {
         }
 
-        // movement_parameters: 4D [ axis-angle rotation: 3, instantaneous propulsion acceleration: 1]
+        // movement_parameters: 3D [ axis-angle rotation: 3]
         // common_parameters: 4D [ magnetometer scale: 3, buoyancy gain: 1]
         template <typename T>
             bool operator()(const T* const common_parameters,
@@ -87,14 +88,13 @@ namespace cerise {
         {
         }
 
-        // movement_parameters: 4D [ axis-angle rotation: 3, instantaneous propulsion acceleration: 1]
-        // common_parameters: 4D [ magnetometer scale: 3, buoyancy gain: 1]
+        // movement_parameters: 1D [ instantaneous propulsion acceleration: 1]
         template <typename T>
             bool operator()(const T* const movement_parameters_1,
                     const T* const movement_parameters_2,
                     T* residuals) const {
 
-                residuals[0] = T(weight) * (movement_parameters_2[3] - movement_parameters_1[3]);
+                residuals[0] = T(weight) * (movement_parameters_2[0] - movement_parameters_1[0]);
                 return true;
             }
 
@@ -111,15 +111,16 @@ namespace cerise {
         // common_parameters: 4D [ magnetometer scale: 3, buoyancy gain: 1]
         template <typename T>
             bool operator()(const T* const common_parameters,
-                    const T* const movement_parameters,
+                    const T* const quaternion,
+                    const T* const propulsion,
                     T* residuals) const {
                 // camera[0,1,2] are the angle-axis rotation.
                 T corrected_body_accel[3];
-                corrected_body_accel[0] = T(a_x) - movement_parameters[4];
+                corrected_body_accel[0] = T(a_x) - propulsion[0];
                 corrected_body_accel[1] = T(a_y);
                 corrected_body_accel[2] = T(a_z);
                 T p[3];
-                ceres::QuaternionRotatePoint(movement_parameters, corrected_body_accel, p);
+                ceres::QuaternionRotatePoint(quaternion, corrected_body_accel, p);
 
                 // The error is the difference between the predicted and a position.
                 residuals[0] = T(weight)*(p[0] - T(G[0]));
@@ -144,11 +145,11 @@ namespace cerise {
         {
         }
 
-        // movement_parameters: 5D [ Quaternion: 4, instantaneous propulsion acceleration: 1]
+        // movement_parameters: 5D [ Quaternion: 4]
         // common_parameters: 4D [ magnetometer scale: 3, buoyancy gain: 1]
         template <typename T>
             bool operator()(const T* const common_parameters,
-                    const T* const movement_parameters,
+                    const T* const quaternion,
                     T* residuals) const {
                 // camera[0,1,2] are the angle-axis rotation.
                 T corrected_body_mag[3];
@@ -156,7 +157,7 @@ namespace cerise {
                 corrected_body_mag[1] = T(m_y) * common_parameters[1];
                 corrected_body_mag[2] = T(m_z) * common_parameters[2];
                 T p[3];
-                ceres::QuaternionRotatePoint(movement_parameters, corrected_body_mag, p);
+                ceres::QuaternionRotatePoint(quaternion, corrected_body_mag, p);
 
                 // The error is the difference between the predicted and a position.
                 residuals[0] = T(weight)*(p[0] - T(B[0]));
@@ -175,25 +176,6 @@ namespace cerise {
         double weight;
     };
 
-    struct SmoothnessConstraintQuat {
-        SmoothnessConstraintQuat(double weight)
-            : weight(weight)
-        {
-        }
-
-        // movement_parameters: 5D [ Quaternion: 4, instantaneous propulsion acceleration: 1]
-        // common_parameters: 4D [ magnetometer scale: 3, buoyancy gain: 1]
-        template <typename T>
-            bool operator()(const T* const movement_parameters_1,
-                    const T* const movement_parameters_2,
-                    T* residuals) const {
-
-                residuals[0] = T(weight) * (movement_parameters_2[4] - movement_parameters_1[4]);
-                return true;
-            }
-
-        double weight;
-    };
 };
 
 
