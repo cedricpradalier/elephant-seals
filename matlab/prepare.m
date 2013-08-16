@@ -42,12 +42,13 @@ for i=1:size(gps,1)
     end
 end
 
+data = acou;
 
 % Select a single cycle
-idx = find(gps(:,4)>0);
-data = acou(gps(idx(1),4):gps(idx(2),4),:);
-gps = gps(idx(1):idx(2),:);
-gps(:,4) = gps(:,4) - gps(1,4) + 1;
+% idx = find(gps(:,4)>0);
+% data = acou(gps(idx(1),4):gps(idx(2),4),:);
+% gps = gps(idx(1):idx(2),:);
+% gps(:,4) = gps(:,4) - gps(1,4) + 1;
 disp 'loaded core data'
 
 N = size(data,1)
@@ -177,9 +178,9 @@ preload_titles{17} = 'yaw';
 preload_titles{18} = 'V';   
 preload_titles{19} = 'dive_status';   
 save -mat data/preload_trajet.mat preload preload_titles
-save -ascii data/preload_mat.txt preload
+save -ascii data/preload_mat_all.txt preload
 gps2 = [floor(gps(:,1)) (gps(:,1)-floor(gps(:,1))) gps(:,2:end)];
-save -ascii data/gps_mat.txt gps2
+save -ascii data/gps_mat_all.txt gps2
 
 Mb = zeros(size(Mn));
 for i=1:N

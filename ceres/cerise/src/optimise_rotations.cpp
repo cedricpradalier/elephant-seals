@@ -10,6 +10,7 @@
 #include "states.h"
 
 DEFINE_string(input, "", "Input File name");
+DEFINE_string(output, "", "Input File name");
 DEFINE_string(trust_region_strategy, "levenberg_marquardt",
               "Options are: levenberg_marquardt, dogleg.");
 DEFINE_string(dogleg, "traditional_dogleg", "Options are: traditional_dogleg,"
@@ -35,6 +36,8 @@ DEFINE_string(sparse_linear_algebra_library, "suite_sparse",
 DEFINE_string(ordering, "automatic", "Options are: automatic, user.");
 
 DEFINE_bool(robustify, false, "Use a robust loss function.");
+DEFINE_bool(interactive, false, "Wait for user key presses.");
+DEFINE_bool(display, false, "Display plot during progress");
 
 DEFINE_double(eta, 1e-2, "Default value for eta. Eta determines the "
              "accuracy of each linear solve of the truncated newton step. "
@@ -67,7 +70,9 @@ namespace cerise{
                     virtual ceres::CallbackReturnType operator()(const 
                             ceres::IterationSummary& summary) { 
                         problem.reportProgress();
-                        // getchar();
+                        // if (FLAGS_interactive) {
+                        //     getchar();
+                        // }
                         return ceres::SOLVER_CONTINUE;
                     } 
             };
@@ -97,7 +102,9 @@ namespace cerise{
                 options->function_tolerance = 3e-4;
                 options->max_solver_time_in_seconds = FLAGS_max_solver_time;
                 options->use_nonmonotonic_steps = FLAGS_nonmonotonic_steps;
-                options->callbacks.push_back(&display);
+                if (FLAGS_display) {
+                    options->callbacks.push_back(&display);
+                }
                 options->update_state_every_iteration = true; 
 
                 CHECK(StringToTrustRegionStrategyType(FLAGS_trust_region_strategy,
@@ -116,6 +123,11 @@ namespace cerise{
                 Solver::Summary summary;
                 Solve(options, &problem, &summary);
                 std::cout << summary.FullReport() << "\n";
+                if (!FLAGS_output.empty()) {
+                    oos.save(FLAGS_output);
+                }
+                // reportProgress();
+                // sleep(3);
             }
 
             bool load(const char * filename, int lineLimit=-1) {
@@ -181,8 +193,10 @@ namespace cerise{
                         problem.SetParameterization(oo.rotation, quaternion_parameterization);
                     }
                 }
-                reportProgress();
-                getchar();
+                if (FLAGS_interactive) {
+                    reportProgress();
+                    getchar();
+                }
                 return true;
             }
 
@@ -220,16 +234,16 @@ namespace cerise{
                     fprintf(fb,"%e %e %e %e\n",t,Bp[0],Bp[1],Bp[2]);
                 }
                 fclose(fa); fclose(fb); 
-                G.plot("set terminal wxt 0");
-                G.plot("plot \"Ap\" u 1:2 w l, \"Ap\" u 1:3 w l, \"Ap\" u 1:4 w l");
-                G.plot("set terminal wxt 1");
+                G.plot("set terminal x11 1");
                 G.plot("plot \"Bp\" u 1:2 w l, \"Bp\" u 1:3 w l, \"Bp\" u 1:4 w l");
-                G.plot("set terminal wxt 3");
+                G.plot("set terminal x11 3");
                 if (oos.use_quaternions) {
                     G.plot("plot \"X\" u 0:6 w l, \"%s\" u 0:($9/500) w l",oos.input_file.c_str());
                 } else {
                     G.plot("plot \"X\" u 0:5 w l, \"%s\" u 0:($9/500) w l",oos.input_file.c_str());
                 }
+                G.plot("set terminal x11 0");
+                G.plot("plot \"Ap\" u 1:2 w l, \"Ap\" u 1:3 w l, \"Ap\" u 1:4 w l");
             }
 #endif
     };
@@ -252,7 +266,11 @@ int main(int argc, char *argv[])
     problem.load(FLAGS_input.c_str());
 
     problem.optimise();
-    getchar();
+    if (FLAGS_interactive) {
+        getchar();
+    }
+
+    return 0;
 }
 
 
