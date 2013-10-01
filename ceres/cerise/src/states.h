@@ -11,6 +11,7 @@ namespace cerise {
         double depth;
         bool has_vel;
         int dive_status;
+        size_t dive_id;
         double vel;
         double vpred; // Initial velocity guess
         double a[3];
@@ -19,6 +20,7 @@ namespace cerise {
         double rpy[3]; // Euler angles in degree
 
         bool load(const std::string & line) ;
+        bool load_raw(const std::string & line) ;
     };
 
     struct GPSLine {

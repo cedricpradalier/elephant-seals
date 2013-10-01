@@ -4,6 +4,8 @@
 #include <math.h>
 #include "states.h"
 
+#include <Eigen/Core>
+
 #include "glog/logging.h"
 #include "gflags/gflags.h"
 #include "ceres/ceres.h"
@@ -15,13 +17,18 @@ using namespace cerise;
 
 
 bool DataLine::load(const std::string & line) {
+    char buffer[line.size()];
     double f=0.0;
     int n=0;
     const char * lp = line.c_str();
     std::vector<double> dline;
-    while (sscanf(lp, " %le%n", &f, &n)==1) {
+    while (sscanf(lp, " %s%n", buffer, &n)==1) {
+        if (sscanf(buffer,"%le",&f)==1) {
+            dline.push_back(f);
+        } else {
+            dline.push_back(NAN);
+        }
         lp += n;
-        dline.push_back(f);
     }
     if (dline.size() < 19) {
         LOG(ERROR) << "Not enough data filed on input line\n";
@@ -45,9 +52,76 @@ bool DataLine::load(const std::string & line) {
     xyz[1] = dline[11];
     xyz[2] = -dline[13];
     // minus sign to convert from ENU to NED
-    rpy[0] = -dline[14]*180./M_PI;
-    rpy[1] = -dline[15]*180./M_PI;
-    rpy[2] = -dline[16]*180./M_PI;
+    if (isnan(dline[14])) {
+        rpy[0] = rpy[1] = rpy[2] = 0.0;
+    } else {
+        rpy[0] = -dline[14]*180./M_PI;
+        rpy[1] = -dline[15]*180./M_PI;
+        rpy[2] = -dline[16]*180./M_PI;
+    }
+    dive_id = 0;
+    if (dline.size()>19) {
+        dive_id = round(dline[19]);
+    }
+    return true;
+}
+
+bool DataLine::load_raw(const std::string & line) {
+    char buffer[line.size()];
+    double f=0.0;
+    int n=0;
+    const char * lp = line.c_str();
+    std::vector<double> dline;
+    while (sscanf(lp, " %s%n", buffer, &n)==1) {
+        if (sscanf(buffer,"%le",&f)==1) {
+            dline.push_back(f);
+        } else {
+            dline.push_back(NAN);
+        }
+        lp += n;
+    }
+    if (dline.size() < 11) {
+        LOG(ERROR) << "Not enough data filed on input line\n";
+        return false;
+    }
+    timestamp = dline[0] + dline[1];
+    depth = dline[2];
+    vel = dline[10];
+    vpred = dline[10];
+    has_vel = true;
+    dive_status = -1;
+    a[0] = dline[7];
+    a[1] = dline[8];
+    a[2] = dline[9];
+    m[0] = dline[4];
+    m[1] = dline[5];
+    m[2] = dline[6];
+    // conversion from ENU to NED (easier to manage with the compass and
+    // accelerometer data in this convention)
+    xyz[0] = 0.0;
+    xyz[1] = 0.0;
+    xyz[2] = -depth;
+    // minus sign to convert from ENU to NED
+    double na = sqrt(a[0]*a[0]+a[1]*a[1]+a[2]*a[2]);
+    rpy[0] = -asin(a[0]/na);
+    rpy[1] = atan2(a[1]/na,-a[2]/na);
+    Eigen::Matrix3f roll; roll << 
+        1, 0, 0,
+        0, cos(rpy[0]), -sin(rpy[0]),
+        0, sin(rpy[0]),  cos(rpy[0]);
+    Eigen::Matrix3f pitch; pitch << 
+         cos(rpy[1]), 0, sin(rpy[1]),
+        0, 1, 0,
+        -sin(rpy[1]), 0, cos(rpy[1]);
+    Eigen::Vector3f M; M << m[0],m[1],m[2];
+    Eigen::Vector3f Mr = pitch * roll * M;
+    double compass = -atan2(Mr(1),Mr(0));
+    rpy[2] = M_PI/2 - compass;
+    // back to degrees
+    for (int i=0;i<3;i++) {
+        rpy[i] *= 180./M_PI;
+    }
+    dive_id = 0;
     return true;
 }
 

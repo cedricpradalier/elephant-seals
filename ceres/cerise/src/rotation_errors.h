@@ -49,6 +49,16 @@ namespace cerise {
         MagnetometerError(double m_x, double m_y, double m_z, double weight)
             : m_x(m_x), m_y(m_y), m_z(m_z), weight(weight) 
         {
+            b_x = B[0]; b_y = B[1]; b_z = B[2];
+        }
+
+        MagnetometerError(double m_x, double m_y, double m_z, 
+                double b_x, double b_y, double b_z, 
+                double weight)
+            : b_x(b_x), b_y(b_y), b_z(b_z), 
+            m_x(m_x), m_y(m_y), m_z(m_z), 
+            weight(weight) 
+        {
         }
 
         // movement_parameters: 3D [ axis-angle rotation: 3]
@@ -66,9 +76,9 @@ namespace cerise {
                 ceres::AngleAxisRotatePoint(movement_parameters, corrected_body_mag, p);
 
                 // The error is the difference between the predicted and a position.
-                residuals[0] = T(weight)*(p[0] - T(B[0]));
-                residuals[1] = T(weight)*(p[1] - T(B[1]));
-                residuals[2] = T(weight)*(p[2] - T(B[2]));
+                residuals[0] = T(weight)*(p[0] - T(b_x));
+                residuals[1] = T(weight)*(p[1] - T(b_y));
+                residuals[2] = T(weight)*(p[2] - T(b_z));
 
                 return true;
             }
@@ -76,6 +86,9 @@ namespace cerise {
         static double B[3];
 
         double scale;
+        double b_x;
+        double b_y;
+        double b_z;
         double m_x;
         double m_y;
         double m_z;
@@ -143,7 +156,18 @@ namespace cerise {
         MagnetometerErrorQuat(double m_x, double m_y, double m_z, double weight)
             : m_x(m_x), m_y(m_y), m_z(m_z), weight(weight) 
         {
+            b_x = B[0]; b_y = B[1]; b_z = B[2];
         }
+
+        MagnetometerErrorQuat(double m_x, double m_y, double m_z, 
+                double b_x, double b_y, double b_z, 
+                double weight)
+            : b_x(b_x), b_y(b_y), b_z(b_z), 
+            m_x(m_x), m_y(m_y), m_z(m_z), 
+            weight(weight) 
+        {
+        }
+
 
         // movement_parameters: 5D [ Quaternion: 4]
         // common_parameters: 4D [ magnetometer scale: 3, buoyancy gain: 1]
@@ -160,9 +184,9 @@ namespace cerise {
                 ceres::QuaternionRotatePoint(quaternion, corrected_body_mag, p);
 
                 // The error is the difference between the predicted and a position.
-                residuals[0] = T(weight)*(p[0] - T(B[0]));
-                residuals[1] = T(weight)*(p[1] - T(B[1]));
-                residuals[2] = T(weight)*(p[2] - T(B[2]));
+                residuals[0] = T(weight)*(p[0] - T(b_x));
+                residuals[1] = T(weight)*(p[1] - T(b_y));
+                residuals[2] = T(weight)*(p[2] - T(b_z));
 
                 return true;
             }
@@ -170,6 +194,9 @@ namespace cerise {
         static double B[3];
 
         double scale;
+        double b_x;
+        double b_y;
+        double b_z;
         double m_x;
         double m_y;
         double m_z;

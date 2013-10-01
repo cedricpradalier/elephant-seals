@@ -41,7 +41,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS propulsion
 
 c.execute("select rowid,start,end from dives")
 dives = c.fetchall()
-for (r,start,end) in dives:
+for (dive_id,start,end) in dives:
     query="""
         select
         ddt.rowid,date,ax,ay,az,mx,my,mz,depth,vel,has_vel,x,y,z,roll,pitch,yaw,velocity,dive_status 
@@ -50,7 +50,7 @@ for (r,start,end) in dives:
         """
     c.execute(query,(start,end))
     l=[list(x) for x in c.fetchall()]
-    m=[[math.floor(x[1]),x[1]-math.floor(x[1])]+x[2:] for x in l];
+    m=[[math.floor(x[1]),x[1]-math.floor(x[1])]+x[2:] for x in l] + [int(dive_id)];
     m=[" ".join([str(y) for y in x]) for x in m]
     f=open("rot_input.txt","w");
     f.write("\n".join(m))

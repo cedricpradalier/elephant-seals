@@ -8,6 +8,20 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
 set(CGNUPLOT $ENV{HOME}/sources/gtl/vsv_stack/cgnuplot)
+# eigen 2 or 3
+find_path(EIGEN_INCLUDE_DIR Eigen/Core
+	/usr/local/include/eigen3
+	/usr/local/include/eigen2
+	/usr/local/include/eigen
+	/usr/include/eigen3
+	/usr/include/eigen2
+	/usr/include/eigen
+	/opt/ros/diamondback/stacks/geometry/eigen/include
+)
+
+# include all libs so far
+include_directories(${EIGEN_INCLUDE_DIR})
+
 
 FIND_PACKAGE(Ceres REQUIRED)
 INCLUDE_DIRECTORIES(${CERES_INCLUDES} ${CGNUPLOT}/include)
