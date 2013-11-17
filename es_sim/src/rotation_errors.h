@@ -80,7 +80,7 @@ namespace cerise {
                 ceres::QuaternionRotatePoint(quaternion, corrected_body_mag, p);
 
                 // The error is the difference between the predicted and a position.
-                residuals[0] = T(weight)*(p[0] - T(common_parameters[2]));
+                residuals[0] = T(weight)*(p[0] - T(common_parameters[2])*T(common_parameters[2]));
                 residuals[1] = T(weight)*(p[1] - T(0.0));
                 residuals[2] = T(weight)*(p[2] - T(1.0));
 
@@ -91,6 +91,35 @@ namespace cerise {
         double m_x;
         double m_y;
         double m_z;
+        double weight;
+    };
+
+    struct ContinuityQuat {
+        ContinuityQuat(double weight)
+            : weight(weight) 
+        {
+        }
+
+        template <typename T>
+            bool operator()(const T* const q1,
+                    const T* const q2,
+                    T* residuals) const {
+                T q2_inv[4], q_err[4];
+                q2_inv[0] = q2[0];
+                q2_inv[1] = -q2[1];
+                q2_inv[2] = -q2[2];
+                q2_inv[3] = -q2[3];
+                ceres::QuaternionProduct(q2_inv, q1, q_err);
+                ceres::QuaternionToAngleAxis(q_err,residuals);
+
+                // The error is the difference between the predicted and a position.
+                residuals[0] *= T(weight);
+                residuals[1] *= T(weight);
+                residuals[2] *= T(weight);
+
+                return true;
+            }
+
         double weight;
     };
 };

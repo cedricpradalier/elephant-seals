@@ -89,12 +89,12 @@ namespace cerise{
             }
             double na = ::sqrt(a[0]*a[0]+a[1]*a[1]+a[2]*a[2]);
             double nm = ::sqrt(m[0]*m[0]+m[1]*m[1]+m[2]*m[2]);
-
-            for (int i=0;i<3;i++) { 
-                a[i] /= na;
-                m[i] /= nm;
-            }
             assert(fabs(na-10.0) < 2.0);
+
+            // for (int i=0;i<3;i++) { 
+            //     a[i] /= na;
+            //     m[i] /= nm;
+            // }
             rpy_init[1] = ::asin(a[0] / na);
             rpy_init[0] = -::asin((a[1]/na)/::cos(rpy_init[1]));
             rpy_init[2] = 0;
@@ -217,10 +217,17 @@ namespace cerise{
                     problem.AddResidualBlock(cost_function,loss_function,P.get(), Q.get()+4*i);
 
                     // Magnetic field
-                    loss_function = FLAGS_robustify ? new HuberLoss(100.0) : NULL;
+                    loss_function = FLAGS_robustify ? new HuberLoss(1.0) : NULL;
                     cost_function = new AutoDiffCostFunction<cerise::MagnetometerErrorQuat,3,3,4>(
                             new cerise::MagnetometerErrorQuat(dl.m[0],dl.m[1],dl.m[2], 1.0));
                     problem.AddResidualBlock(cost_function,loss_function,P.get(), Q.get()+4*i);
+
+                    if (i>0) {
+                        // Continuity
+                        cost_function = new AutoDiffCostFunction<cerise::ContinuityQuat,3,4,4>(
+                                new cerise::ContinuityQuat(0.01));
+                        problem.AddResidualBlock(cost_function,loss_function,Q.get()+4*(i-1),Q.get()+4*i);
+                    }
 
                     problem.SetParameterization(Q.get()+4*i, quaternion_parameterization);
                 }
