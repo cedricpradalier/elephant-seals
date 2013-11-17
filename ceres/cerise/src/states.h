@@ -70,9 +70,10 @@ namespace cerise {
     struct OptimisedOrientationSequence {
         std::string input_file;
         bool use_quaternions;
-        double common_parameters[4];
+        double common_parameters[7];
         double *Bscale; // 3D vector of magnetometer gains
         double *Kdepth; // Buoyancy factor: measure accel = G + Kdepth*depth*[0;0;1]
+        double *MagField; // Magnetic field
         std::vector<OptimisedOrientation> states;
 
         OptimisedOrientationSequence();

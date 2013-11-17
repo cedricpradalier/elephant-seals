@@ -231,12 +231,14 @@ OptimisedOrientationSequence::OptimisedOrientationSequence() {
     use_quaternions = FLAGS_use_quaternions;
     Bscale = common_parameters;
     Kdepth = common_parameters + 3;
+    MagField = common_parameters + 4;
 };
 
 OptimisedOrientationSequence::OptimisedOrientationSequence(const OptimisedOrientationSequence & oos) {
     use_quaternions = FLAGS_use_quaternions;
     Bscale = common_parameters;
     Kdepth = common_parameters + 3;
+    MagField = common_parameters + 4;
     for (size_t i=0;i<4;i++) {
         common_parameters[i] = oos.common_parameters[i];
     }
@@ -248,11 +250,27 @@ void OptimisedOrientationSequence::initialise(const std::string & source_file, c
 {
     input_file = source_file;
     use_quaternions = FLAGS_use_quaternions;
-    Bscale[0] = 100.0;
-    Bscale[1] = 100.0;
-    Bscale[2] = 100.0;
+    Bscale[0] = 1.0;
+    Bscale[1] = 1.0;
+    Bscale[2] = 1.0;
     Kdepth[0] = 2.0/600.0;
     states.clear();
+    double r = lines[0].rpy[0]*M_PI/180.;
+    double p = lines[0].rpy[1]*M_PI/180.;
+    Eigen::Matrix3f roll; roll << 
+        1, 0, 0,
+        0, cos(r), sin(r),
+        0, -sin(r),  cos(r);
+    Eigen::Matrix3f pitch; pitch << 
+         cos(p), 0, -sin(p),
+        0, 1, 0,
+        sin(p), 0, cos(p);
+    Eigen::Vector3f M; M << lines[0].m[0],lines[0].m[1],lines[0].m[2];
+    Eigen::Vector3f Mr = pitch * roll * M;
+    MagField[0] = Mr(0);
+    MagField[1] = Mr(1);
+    MagField[2] = Mr(2);
+    
     for (size_t i=0;i<lines.size();i++) {
         const DataLine & dl(lines[i]);
         OptimisedOrientation oo;
@@ -288,6 +306,8 @@ bool OptimisedOrientationSequence::load(const std::string & filename)
                 use_quaternions = use_q;
             } else if (l.substr(0,5) == "#Bsca") {
                 sscanf(line,"#Bscale %le %le %le",Bscale+0,Bscale+1,Bscale+2);
+            } else if (l.substr(0,5) == "#MagF") {
+                sscanf(line,"#MagField %le %le %le",MagField+0,MagField+1,MagField+2);
             } else if (l.substr(0,5) == "#Kdep") {
                 sscanf(line,"#Kdepth %le",Kdepth);
             } else if (line[0] == '#') {
@@ -313,6 +333,7 @@ bool OptimisedOrientationSequence::save(const std::string & filename) const
     }
     fprintf(fp,"#Input %s\n",input_file.c_str());
     fprintf(fp,"#UseQuaternion %d\n",use_quaternions);
+    fprintf(fp,"#MagField %e %e %e\n",MagField[0],MagField[1],MagField[2]);
     fprintf(fp,"#Bscale %e %e %e\n",Bscale[0],Bscale[1],Bscale[2]);
     fprintf(fp,"#Kdepth %e\n",Kdepth[0]);
     fprintf(fp,"#Header index  R0 R1 R2 [R3] Prop\n");

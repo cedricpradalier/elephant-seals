@@ -55,6 +55,7 @@ DEFINE_int32(num_iterations, 100, "Number of iterations.");
 DEFINE_double(max_solver_time, 1e32, "Maximum solve time in seconds.");
 DEFINE_bool(nonmonotonic_steps, false, "Trust region algorithm can use"
             " nonmonotic steps.");
+DEFINE_bool(mag,false,"Estimate the magnetic field vector");
 
 DEFINE_string(solver_log, "", "File to record the solver execution to.");
 
@@ -221,8 +222,13 @@ namespace cerise{
                     // Acceleration
                     loss_function = FLAGS_robustify ? new HuberLoss(1.0) : NULL;
                     if (oos.use_quaternions) {
-                        cost_function = new AutoDiffCostFunction<cerise::AccelerometerErrorQuat,3,4,4,1>(
-                                new cerise::AccelerometerErrorQuat(dl.depth,dl.a[0],dl.a[1],dl.a[2], 100.0));
+                        if (FLAGS_mag) {
+                            cost_function = new AutoDiffCostFunction<cerise::AccelerometerErrorQuat,3,7,4,1>(
+                                    new cerise::AccelerometerErrorQuat(dl.depth,dl.a[0],dl.a[1],dl.a[2], 100.0));
+                        } else {
+                            cost_function = new AutoDiffCostFunction<cerise::AccelerometerErrorQuat,3,4,4,1>(
+                                    new cerise::AccelerometerErrorQuat(dl.depth,dl.a[0],dl.a[1],dl.a[2], 100.0));
+                        }
                     } else {
                         cost_function = new AutoDiffCostFunction<cerise::AccelerometerError,3,4,3,1>(
                                 new cerise::AccelerometerError(dl.depth,dl.a[0],dl.a[1],dl.a[2], 100.0));
@@ -233,9 +239,14 @@ namespace cerise{
                     // Magnetic field
                     loss_function = FLAGS_robustify ? new HuberLoss(100.0) : NULL;
                     if (oos.use_quaternions) {
-                        cost_function = new AutoDiffCostFunction<cerise::MagnetometerErrorQuat,3,4,4>(
-                                new cerise::MagnetometerErrorQuat(dl.m[0],dl.m[1],dl.m[2], 
-                                    gps.B[0],gps.B[1],gps.B[2], 0.001));
+                        if (FLAGS_mag) {
+                            cost_function = new AutoDiffCostFunction<cerise::MagnetometerFieldErrorQuat,3,7,4>(
+                                    new cerise::MagnetometerFieldErrorQuat(dl.m[0],dl.m[1],dl.m[2], 0.001));
+                        } else {
+                            cost_function = new AutoDiffCostFunction<cerise::MagnetometerErrorQuat,3,4,4>(
+                                    new cerise::MagnetometerErrorQuat(dl.m[0],dl.m[1],dl.m[2], 
+                                        gps.B[0],gps.B[1],gps.B[2], 0.001));
+                        }
                     } else {
                         cost_function = new AutoDiffCostFunction<cerise::MagnetometerError,3,4,3>(
                                 new cerise::MagnetometerError(dl.m[0],dl.m[1],dl.m[2], 

@@ -203,6 +203,43 @@ namespace cerise {
         double weight;
     };
 
+    struct MagnetometerFieldErrorQuat {
+        MagnetometerFieldErrorQuat(double m_x, double m_y, double m_z, double weight)
+            : m_x(m_x), m_y(m_y), m_z(m_z), weight(weight) 
+        {
+        }
+
+
+
+        // movement_parameters: 5D [ Quaternion: 4]
+        // common_parameters: 4D [ magnetometer scale: 3, buoyancy gain: 1]
+        template <typename T>
+            bool operator()(const T* const common_parameters,
+                    const T* const quaternion,
+                    T* residuals) const {
+                // camera[0,1,2] are the angle-axis rotation.
+                T corrected_body_mag[3];
+                corrected_body_mag[0] = T(m_x) * common_parameters[0];
+                corrected_body_mag[1] = T(m_y) * common_parameters[1];
+                corrected_body_mag[2] = T(m_z) * common_parameters[2];
+                T p[3];
+                ceres::QuaternionRotatePoint(quaternion, corrected_body_mag, p);
+
+                // The error is the difference between the predicted and a position.
+                residuals[0] = T(weight)*(p[0] - common_parameters[4]);
+                residuals[1] = T(weight)*(p[1] - common_parameters[5]);
+                residuals[2] = T(weight)*(p[2] - common_parameters[6]);
+
+                return true;
+            }
+
+        double scale;
+        double m_x;
+        double m_y;
+        double m_z;
+        double weight;
+    };
+
 };
 
 
