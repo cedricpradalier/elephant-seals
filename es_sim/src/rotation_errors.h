@@ -3,6 +3,7 @@
 
 #include "ceres/ceres.h"
 #include "ceres/rotation.h"
+#include "boost/shared_ptr.hpp"
 
 namespace cerise {
 
@@ -45,9 +46,9 @@ namespace cerise {
                 ceres::QuaternionRotatePoint(quaternion, corrected_body_accel, p);
 
                 // The error is the difference between the predicted and a position.
-                residuals[0] = T(weight)*(p[0] - T(0.0));
-                residuals[1] = T(weight)*(p[1] - T(0.0));
-                residuals[2] = T(weight)*(p[2] - T(-1.0));
+                residuals[0] = T(weight)*(p[0] - T(G[0]));
+                residuals[1] = T(weight)*(p[1] - T(G[1]));
+                residuals[2] = T(weight)*(p[2] - T(G[2]));
 
                 return true;
             }
@@ -61,8 +62,9 @@ namespace cerise {
     };
 
     struct MagnetometerErrorQuat {
-        MagnetometerErrorQuat(double m_x, double m_y, double m_z, double weight)
-            : m_x(m_x), m_y(m_y), m_z(m_z), weight(weight) 
+        MagnetometerErrorQuat(bool northern,double m_x, double m_y, double m_z, 
+                boost::shared_ptr<double> M, double weight)
+            : northern(northern), m_x(m_x), m_y(m_y), m_z(m_z), M(M), weight(weight) 
         {
         }
 
@@ -73,24 +75,25 @@ namespace cerise {
                     const T* const quaternion,
                     T* residuals) const {
                 T corrected_body_mag[3];
-                corrected_body_mag[0] = T(m_x) * common_parameters[1];
-                corrected_body_mag[1] = T(m_y) * common_parameters[1];
-                corrected_body_mag[2] = T(m_z) * common_parameters[1];
+                corrected_body_mag[0] = T((m_x - M.get()[0])/M.get()[3]);
+                corrected_body_mag[1] = T((m_y - M.get()[1])/M.get()[3]);
+                corrected_body_mag[2] = T((m_z - M.get()[2])/M.get()[3]);
                 T p[3];
                 ceres::QuaternionRotatePoint(quaternion, corrected_body_mag, p);
 
                 // The error is the difference between the predicted and a position.
-                residuals[0] = T(weight)*(p[0] - T(common_parameters[2])*T(common_parameters[2]));
-                residuals[1] = T(weight)*(p[1] - T(0.0));
-                residuals[2] = T(weight)*(p[2] - T(1.0));
+                residuals[0] = T(weight)*(p[0] - cos(common_parameters[1]));
+                residuals[1] = T(weight)*(p[1]); // - T(0.0));
+                residuals[2] = T(weight)*(p[2] - sin(common_parameters[1])); 
 
                 return true;
             }
 
-        double scale;
+        bool northern;
         double m_x;
         double m_y;
         double m_z;
+        boost::shared_ptr<double> M;
         double weight;
     };
 
@@ -121,6 +124,27 @@ namespace cerise {
             }
 
         double weight;
+    };
+
+    struct SphereConstraint {
+        SphereConstraint(double vx, double vy, double vz):
+            vx(vx), vy(vy), vz(vz)
+        {
+        }
+
+        template <typename T>
+            bool operator()(const T* const params,
+                    T* residuals) const {
+
+                // The error is the difference between the predicted and a position.
+                residuals[0] = params[3] - ((T(vx)-params[0])*(T(vx)-params[0]) 
+                        +(T(vy)-params[1])*(T(vy)-params[1]) 
+                        +(T(vz)-params[2])*(T(vz)-params[2])); 
+
+                return true;
+            }
+
+        double vx,vy,vz;
     };
 };
 

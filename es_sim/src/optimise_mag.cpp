@@ -30,8 +30,6 @@ DEFINE_string(sparse_linear_algebra_library, "suite_sparse",
 DEFINE_string(ordering, "automatic", "Options are: automatic, user.");
 
 DEFINE_bool(robustify, false, "Use a robust loss function.");
-DEFINE_bool(interactive, false, "Wait for user key presses.");
-DEFINE_bool(display, false, "Display plot during progress");
 
 DEFINE_double(wmag, 1.0, "Weight of magnetometer measurements");
 DEFINE_double(wacc, 1.0, "Weight of accelerometer measurements");
@@ -127,30 +125,10 @@ namespace cerise{
 
     class OptimiseRotation {
         protected:
-            cgnuplot::CGnuplot G;
-            class DisplayCallback: public ceres::IterationCallback { 
-                protected:
-                    OptimiseRotation & problem;
-                public: 
-                    DisplayCallback(OptimiseRotation & p) : problem(p) {}
-                    virtual ceres::CallbackReturnType operator()(const 
-                            ceres::IterationSummary& summary) { 
-                        problem.reportProgress(true);
-                        // if (FLAGS_interactive) {
-                        //     getchar();
-                        // }
-                        return ceres::SOLVER_CONTINUE;
-                    } 
-            };
-
-            DisplayCallback display;
             std::vector<DataLine> lines; 
-            boost::shared_ptr<double> M;
             boost::shared_ptr<double> P;
-            boost::shared_ptr<double> Q;
 
 
-            Problem problem_mag;
             Problem problem;
             void SetLinearSolver(Solver::Options* options) {
                 CHECK(StringToLinearSolverType(FLAGS_linear_solver,
@@ -163,7 +141,7 @@ namespace cerise{
                 options->num_linear_solver_threads = FLAGS_num_threads;
             }
 
-            void SetMinimizerOptions(Solver::Options* options, bool minimum) {
+            void SetMinimizerOptions(Solver::Options* options) {
                 options->max_num_iterations = FLAGS_num_iterations;
                 options->minimizer_progress_to_stdout = true;
                 options->num_threads = FLAGS_num_threads;
@@ -171,58 +149,27 @@ namespace cerise{
                 options->function_tolerance = FLAGS_ftol;
                 options->max_solver_time_in_seconds = FLAGS_max_solver_time;
                 options->use_nonmonotonic_steps = FLAGS_nonmonotonic_steps;
-                if (!minimum) {
-                    if (FLAGS_display) {
-                        options->callbacks.push_back(&display);
-                    }
-                    options->update_state_every_iteration = true; 
-                }
+
                 CHECK(StringToTrustRegionStrategyType(FLAGS_trust_region_strategy,
                             &options->trust_region_strategy_type));
                 CHECK(StringToDoglegType(FLAGS_dogleg, &options->dogleg_type));
             }
 
         public:
-            OptimiseRotation() : display(*this) {}
+            OptimiseRotation()  {}
 
             void optimise() {
                 Solver::Options options;
-                SetMinimizerOptions(&options,true);
+                SetMinimizerOptions(&options);
                 SetLinearSolver(&options);
                 Solver::Summary summary;
-                Solve(options, &problem_mag, &summary);
-                std::cout << summary.FullReport() << "\n";
-                M.get()[3] = ::sqrt(M.get()[3]);
-                std::cout << "M Mag: " << M.get()[0] 
-                    << " " << M.get()[1]
-                    << " " << M.get()[2] 
-                    << " " << M.get()[3]
-                    << std::endl;
-                // Now initialise the yaw angle and quaternion using this
-                // information.
-                for (size_t i=0;i<lines.size();i++) {
-                    DataLine & dl(lines[i]);
-                    double *q = Q.get()+4*i;
-                    double mat[9] = {1,0,0,0,1,0,0,0,1};
-                    double log[3];
-                    dl.rpy_init[2] = ::atan2(dl.m[1]-M.get()[1],dl.m[0]-M.get()[0]) * 180./M_PI;
-                    EulerAnglesToRotationMatrix<double>(dl.rpy_init,3,mat);
-                    RotationMatrixToAngleAxis<double>(mat,log);
-                    AngleAxisToQuaternion<double>(log,q);
-                }
-                if (FLAGS_interactive) {
-                    reportProgress();
-                    getchar();
-                }
-
-                // Now solve the full problem
-                SetMinimizerOptions(&options,false);
                 Solve(options, &problem, &summary);
                 std::cout << summary.FullReport() << "\n";
-                std::cout << "P: " << P.get()[0] 
-                    << " " << P.get()[1]
-                    << std::endl;
-                reportProgress();
+                    std::cout << "P: " << P.get()[0] 
+                        << " " << P.get()[1]
+                        << " " << P.get()[2] 
+                        << " " << ::sqrt(P.get()[3])
+                        << std::endl;
             }
 
             bool load(const char * filename, int lineLimit=-1) {
@@ -245,103 +192,34 @@ namespace cerise{
                 fclose(fp);
                 printf("Loaded %d lines\n",(int)lines.size());
 
-                LocalParameterization* quaternion_parameterization = NULL;
-                M.reset(new double[4]);
-                M.get()[0] = 1.0;
-                M.get()[1] = 1.0;
-                M.get()[2] = 1.0;
-                M.get()[3] = 1.0;
-                double * Bmean = M.get();
-                P.reset(new double[2]);
+                P.reset(new double[4]);
                 P.get()[0] = 1.0;
-                P.get()[1] = M_PI/4;
-                Q.reset(new double[4*lines.size()]);
-                quaternion_parameterization = new QuaternionParameterization;
+                P.get()[1] = 1.0;
+                P.get()[2] = 1.0;
+                P.get()[3] = 1.0;
+                double * Bmean = P.get();
+                Bmean[0] = Bmean[1] = Bmean[2] = 0.0;
                 for (size_t i=0;i<lines.size();i++) {
                     DataLine & dl(lines[i]);
                     Bmean[0] += dl.m[0];
                     Bmean[1] += dl.m[1];
                     Bmean[2] += dl.m[2];
-                    double * q = Q.get()+4*i;
-                    q[0] = 1.0; q[1] = q[2] = q[3] = 0.0;
-                    LossFunction* loss_function;
-                    CostFunction *cost_function;
-                    // Acceleration
-                    loss_function = FLAGS_robustify ? new HuberLoss(1.0) : NULL;
-                    cost_function = new AutoDiffCostFunction<cerise::AccelerometerErrorQuat,3,2,4>(
-                            new cerise::AccelerometerErrorQuat(dl.a[0],dl.a[1],dl.a[2], FLAGS_wacc));
-                    problem.AddResidualBlock(cost_function,loss_function,P.get(), q);
-
-                    // Magnetic field
-                    loss_function = FLAGS_robustify ? new HuberLoss(1.0) : NULL;
-                    cost_function = new AutoDiffCostFunction<cerise::MagnetometerErrorQuat,3,2,4>(
-                            new cerise::MagnetometerErrorQuat(false,dl.m[0],dl.m[1],dl.m[2], M, FLAGS_wmag));
-                    problem.AddResidualBlock(cost_function,loss_function,P.get(), q);
-
-                    loss_function = FLAGS_robustify ? new HuberLoss(1.0) : NULL;
-                    cost_function = new AutoDiffCostFunction<cerise::SphereConstraint,1,4>(
-                            new cerise::SphereConstraint(dl.m[0],dl.m[1],dl.m[2]));
-                    problem_mag.AddResidualBlock(cost_function,loss_function,M.get());
-
-                    if (i>0) {
-                        // Continuity
-                        cost_function = new AutoDiffCostFunction<cerise::ContinuityQuat,3,4,4>(
-                                new cerise::ContinuityQuat(FLAGS_wcont));
-                        problem.AddResidualBlock(cost_function,loss_function,q-4,q);
-                    }
-
-                    problem.SetParameterization(Q.get()+4*i, quaternion_parameterization);
                 }
                 Bmean[0] /= lines.size();
                 Bmean[1] /= lines.size();
                 Bmean[2] /= lines.size();
-                if (FLAGS_interactive) {
-                    reportProgress();
-                    getchar();
+                for (size_t i=0;i<lines.size();i++) {
+                    DataLine & dl(lines[i]);
+                    LossFunction* loss_function;
+                    CostFunction *cost_function;
+                    loss_function = FLAGS_robustify ? new HuberLoss(1.0) : NULL;
+                    cost_function = new AutoDiffCostFunction<cerise::SphereConstraint,1,4>(
+                            new cerise::SphereConstraint(dl.m[0],dl.m[1],dl.m[2]));
+                    problem.AddResidualBlock(cost_function,loss_function,P.get());
                 }
                 return true;
             }
 
-#if 1
-            virtual void reportProgress(bool intermediate=false) {
-                FILE *fa = fopen("Ap","w"), 
-                     *fb = fopen("Bp","w"),
-                     *fr = fopen("R","w");
-                for (size_t i=0;i<lines.size();i++) {
-                    DataLine & dl(lines[i]);
-                    double *q = Q.get()+4*i;
-                    double As[3], Ap[3], Bs[3], Bp[3];
-                    double t = dl.timestamp;
-                    for (size_t j=0;j<3;j++) {
-                        As[j] = dl.a[j] * P.get()[0];
-                        Bs[j] = (dl.m[j]-M.get()[j]) / M.get()[3];
-                    }
-                    QuaternionRotatePoint(q,As,Ap);
-                    QuaternionRotatePoint(q,Bs,Bp);
-                    tf::Quaternion tfQ(q[1],q[2],q[3],q[0]);
-                    tf::Matrix3x3 tfM(tfQ);
-                    tfScalar roll,pitch,yaw;
-                    tfM.getRPY(roll,pitch,yaw);
-                    
-
-                    fprintf(fa,"%e %e %e %e\n",t,Ap[0],Ap[1],Ap[2]);
-                    fprintf(fb,"%e %e %e %e\n",t,Bp[0],Bp[1],Bp[2]);
-                    fprintf(fr,"%e %e %e %e\n",t,roll,pitch,yaw);
-                }
-                fclose(fa); fclose(fb); fclose(fr);
-                if (FLAGS_display) {
-                    G.plot("set terminal x11 1;set grid");
-                    G.plot("plot \"Bp\" u 1:2 w l, \"Bp\" u 1:3 w l, \"Bp\" u 1:4 w l");
-                    G.plot("set terminal x11 0;set grid");
-                    G.plot("plot \"Ap\" u 1:2 w l, \"Ap\" u 1:3 w l, \"Ap\" u 1:4 w l");
-                    G.plot("set terminal x11 2;set grid");
-                    G.plot("plot \"R\" u 1:2 w l, \"R\" u 1:3 w l, \"R\" u 1:4 w l");
-                    std::cout << "P: " << P.get()[0] 
-                        << " " << P.get()[1]
-                        << std::endl;
-                }
-            }
-#endif
     };
 };
 
@@ -362,9 +240,6 @@ int main(int argc, char *argv[])
     problem.load(FLAGS_input.c_str(),FLAGS_num_lines);
 
     problem.optimise();
-    if (FLAGS_interactive) {
-        getchar();
-    }
 
     return 0;
 }

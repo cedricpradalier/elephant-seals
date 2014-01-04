@@ -57,5 +57,9 @@ ADD_EXECUTABLE(optimise_rotations src/optimise_rotations.cpp
     src/rotation_errors.cpp)
 TARGET_LINK_LIBRARIES(optimise_rotations ${CERES_LIBRARIES} -lcgnuplot)
 
+ADD_EXECUTABLE(optimise_mag src/optimise_mag.cpp
+    src/rotation_errors.cpp)
+TARGET_LINK_LIBRARIES(optimise_mag ${CERES_LIBRARIES} -lcgnuplot)
+
 
 
