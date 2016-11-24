@@ -12,7 +12,6 @@
 DEFINE_string(input, "", "Input File name");
 DEFINE_string(output, "", "Input File name");
 DEFINE_string(gps, "", "GPS File name");
-DEFINE_bool(raw, false, "Use a raw input file (11 columns)");
 DEFINE_string(trust_region_strategy, "levenberg_marquardt",
               "Options are: levenberg_marquardt, dogleg.");
 DEFINE_string(dogleg, "traditional_dogleg", "Options are: traditional_dogleg,"
@@ -51,11 +50,10 @@ DEFINE_bool(use_local_parameterization, false, "For quaternions, use a local "
 
 DEFINE_int32(num_lines, -1, "Number of data lines to consider.");
 DEFINE_int32(num_threads, 1, "Number of threads.");
-DEFINE_int32(num_iterations, 100, "Number of iterations.");
+DEFINE_int32(num_iterations, 50, "Number of iterations.");
 DEFINE_double(max_solver_time, 1e32, "Maximum solve time in seconds.");
 DEFINE_bool(nonmonotonic_steps, false, "Trust region algorithm can use"
             " nonmonotic steps.");
-DEFINE_bool(mag,false,"Estimate the magnetic field vector");
 
 DEFINE_string(solver_log, "", "File to record the solver execution to.");
 
@@ -74,7 +72,7 @@ namespace cerise{
                     DisplayCallback(OptimiseRotation & p) : problem(p) {}
                     virtual ceres::CallbackReturnType operator()(const 
                             ceres::IterationSummary& summary) { 
-                        problem.reportProgress(true);
+                        problem.reportProgress();
                         // if (FLAGS_interactive) {
                         //     getchar();
                         // }
@@ -168,14 +166,8 @@ namespace cerise{
                     std::vector<double> dline;
                     if (fgets(line,4095, fp)!= NULL) {
                         DataLine dl;
-                        if (FLAGS_raw) {
-                            if (dl.load_raw(line)) {
-                                lines.push_back(dl);
-                            }
-                        } else {
-                            if (dl.load(line)) {
-                                lines.push_back(dl);
-                            }
+                        if (dl.load_raw(line)) {
+                            lines.push_back(dl);
                         }
                     }
                 }
@@ -222,16 +214,11 @@ namespace cerise{
                     // Acceleration
                     loss_function = FLAGS_robustify ? new HuberLoss(1.0) : NULL;
                     if (oos.use_quaternions) {
-                        if (FLAGS_mag) {
-                            cost_function = new AutoDiffCostFunction<cerise::AccelerometerErrorQuat,3,7,4,1>(
-                                    new cerise::AccelerometerErrorQuat(dl.depth,dl.a[0],dl.a[1],dl.a[2], 100.0));
-                        } else {
-                            cost_function = new AutoDiffCostFunction<cerise::AccelerometerErrorQuat,3,4,4,1>(
-                                    new cerise::AccelerometerErrorQuat(dl.depth,dl.a[0],dl.a[1],dl.a[2], 100.0));
-                        }
+                        cost_function = new AutoDiffCostFunction<cerise::AccelerometerErrorQuat,3,4,4,1>(
+                                new cerise::AccelerometerErrorQuat(dl.depth,dl.a[0],dl.a[1],dl.a[2], 10.0));
                     } else {
                         cost_function = new AutoDiffCostFunction<cerise::AccelerometerError,3,4,3,1>(
-                                new cerise::AccelerometerError(dl.depth,dl.a[0],dl.a[1],dl.a[2], 100.0));
+                                new cerise::AccelerometerError(dl.depth,dl.a[0],dl.a[1],dl.a[2], 10.0));
                     }
                     problem.AddResidualBlock(cost_function,loss_function,oos.common_parameters, 
                             oo.rotation,oo.propulsion);
@@ -239,25 +226,20 @@ namespace cerise{
                     // Magnetic field
                     loss_function = FLAGS_robustify ? new HuberLoss(100.0) : NULL;
                     if (oos.use_quaternions) {
-                        if (FLAGS_mag) {
-                            cost_function = new AutoDiffCostFunction<cerise::MagnetometerFieldErrorQuat,3,7,4>(
-                                    new cerise::MagnetometerFieldErrorQuat(dl.m[0],dl.m[1],dl.m[2], 0.001));
-                        } else {
-                            cost_function = new AutoDiffCostFunction<cerise::MagnetometerErrorQuat,3,4,4>(
-                                    new cerise::MagnetometerErrorQuat(dl.m[0],dl.m[1],dl.m[2], 
-                                        gps.B[0],gps.B[1],gps.B[2], 0.001));
-                        }
+                        cost_function = new AutoDiffCostFunction<cerise::MagnetometerErrorQuat,3,4,4>(
+                                new cerise::MagnetometerErrorQuat(dl.m[0],dl.m[1],dl.m[2], 
+                                    gps.B[0],gps.B[1],gps.B[2], 0.01));
                     } else {
                         cost_function = new AutoDiffCostFunction<cerise::MagnetometerError,3,4,3>(
                                 new cerise::MagnetometerError(dl.m[0],dl.m[1],dl.m[2], 
-                                    gps.B[0],gps.B[1],gps.B[2], 0.001));
+                                    gps.B[0],gps.B[1],gps.B[2], 0.01));
                     }
                     problem.AddResidualBlock(cost_function,loss_function,oos.common_parameters, oo.rotation);
 
                     if (i>0) {
                         // Smoothness constraint
                         cost_function = new AutoDiffCostFunction<cerise::SmoothnessConstraint,1,1,1>(
-                                new cerise::SmoothnessConstraint(5e1));
+                                new cerise::SmoothnessConstraint(1e1));
                         problem.AddResidualBlock(cost_function,NULL,oos.states[i-1].propulsion, oo.propulsion);
                     }
                     if (oos.use_quaternions && FLAGS_use_local_parameterization) {
@@ -273,7 +255,7 @@ namespace cerise{
 
 #if 1
 
-            virtual void reportProgress(bool intermediate=false) {
+            virtual void reportProgress() {
                 oos.save("X");
                 FILE *fa = fopen("Ap","w"), *fb = fopen("Bp","w");
                 for (size_t i=0;i<lines.size();i++) {
@@ -308,20 +290,14 @@ namespace cerise{
                 if (FLAGS_display) {
                     G.plot("set terminal x11 1;set grid");
                     G.plot("plot \"Bp\" u 1:2 w l, \"Bp\" u 1:3 w l, \"Bp\" u 1:4 w l");
-                    if (!intermediate) {
-                        G.plot("set terminal x11 3;set grid");
-                        int n = FLAGS_num_lines;
-                        if (n <= 0) n = lines.size();
-                        int depth_col=9;
-                        if (FLAGS_raw) {
-                            depth_col=3;
-                        }
-                        if (oos.use_quaternions) {
-                            G.plot("plot [0:%d] \"X\" u 0:6 w l, \"%s\" u 0:($%d/500) w l",n,oos.input_file.c_str(),depth_col);
-                        } else {
-                            G.plot("plot [0:%d] \"X\" u 0:5 w l, \"%s\" u 0:($%d/500) w l",n,oos.input_file.c_str(),depth_col);
-                        }
-                    } 
+                    G.plot("set terminal x11 3;set grid");
+                    int n = FLAGS_num_lines;
+                    if (n <= 0) n = lines.size();
+                    if (oos.use_quaternions) {
+                        G.plot("plot [0:%d] \"X\" u 0:6 w l, \"%s\" u 0:($9/500) w l",n,oos.input_file.c_str());
+                    } else {
+                        G.plot("plot [0:%d] \"X\" u 0:5 w l, \"%s\" u 0:($9/500) w l",n,oos.input_file.c_str());
+                    }
                     G.plot("set terminal x11 0;set grid");
                     G.plot("plot \"Ap\" u 1:2 w l, \"Ap\" u 1:3 w l, \"Ap\" u 1:4 w l");
                 }

@@ -29,16 +29,16 @@ LINK_DIRECTORIES(${CGNUPLOT}/lib)
 
 add_definitions(-Wall -g -ggdb -O3)
 
-# helloworld
-ADD_EXECUTABLE(circle_fit src/circle_fit.cpp)
-TARGET_LINK_LIBRARIES(circle_fit ${CERES_LIBRARIES})
+# # helloworld
+# ADD_EXECUTABLE(circle_fit src/circle_fit.cpp)
+# TARGET_LINK_LIBRARIES(circle_fit ${CERES_LIBRARIES})
 
 # rotations only
 ADD_EXECUTABLE(optimise_rotations src/optimise_rotations.cpp
     src/states.cpp src/rotation_errors.cpp)
-TARGET_LINK_LIBRARIES(optimise_rotations ${CERES_LIBRARIES} -lcgnuplot)
+TARGET_LINK_LIBRARIES(optimise_rotations ${CERES_LIBRARIES} gflags cgnuplot)
 
-# all displacement, assuming rotations have been solved already
-ADD_EXECUTABLE(optimise_displacement src/optimise_displacement.cpp
-    src/states.cpp)
-TARGET_LINK_LIBRARIES(optimise_displacement ${CERES_LIBRARIES} -lcgnuplot)
+# # all displacement, assuming rotations have been solved already
+# ADD_EXECUTABLE(optimise_displacement src/optimise_displacement.cpp
+#     src/states.cpp)
+# TARGET_LINK_LIBRARIES(optimise_displacement ${CERES_LIBRARIES} -lcgnuplot)
