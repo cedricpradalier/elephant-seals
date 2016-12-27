@@ -7,7 +7,10 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 #set the default path for built libraries to the "lib" directory
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
-set(CGNUPLOT $ENV{HOME}/sources/gtl/vsv_stack/cgnuplot)
+INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/cgnuplot/include)
+add_subdirectory(cgnuplot)
+
+set(CGNUPLOT ${PROJECT_SOURCE_DIR}/cgnuplot)
 # eigen 2 or 3
 find_path(EIGEN_INCLUDE_DIR Eigen/Core
 	/usr/local/include/eigen3
@@ -25,7 +28,7 @@ include_directories(${EIGEN_INCLUDE_DIR})
 
 FIND_PACKAGE(Ceres REQUIRED)
 INCLUDE_DIRECTORIES(${CERES_INCLUDES} ${CGNUPLOT}/include)
-LINK_DIRECTORIES(${CGNUPLOT}/lib)
+#LINK_DIRECTORIES(${CGNUPLOT}/lib)
 
 add_definitions(-Wall -g -ggdb -O3)
 

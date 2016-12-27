@@ -21,17 +21,17 @@
 add_definitions(-g -ggdb -O0)
 
 #common commands for building c++ executables and libraries
-add_library(${PROJECT_NAME} 
+add_library(cgnuplot
 	src/CGnuplot.cpp
 	src/CGnuplotSurfaceGrapher.cpp
 	src/CShell.cpp)
-target_link_libraries(${PROJECT_NAME})
+target_link_libraries(cgnuplot)
 
 add_executable(test_cgnuplot src/test.cpp)
-target_link_libraries(test_cgnuplot ${PROJECT_NAME})
+target_link_libraries(test_cgnuplot cgnuplot)
 
 add_executable(test_movie src/test_movie.cpp)
-target_link_libraries(test_movie ${PROJECT_NAME})
+target_link_libraries(test_movie cgnuplot)
 
 add_executable(test_surf src/test_surf.cpp)
-target_link_libraries(test_surf ${PROJECT_NAME})
+target_link_libraries(test_surf cgnuplot)

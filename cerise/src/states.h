@@ -79,7 +79,7 @@ namespace cerise {
         OptimisedOrientationSequence();
         OptimisedOrientationSequence(const OptimisedOrientationSequence & oos); 
 
-        void initialise(const std::string & source_file, const std::vector<DataLine> & lines);
+        void initialise(const std::string & source_file, const std::vector<DataLine> & lines, size_t begin, size_t end);
 
         bool load(const std::string & filename);
 

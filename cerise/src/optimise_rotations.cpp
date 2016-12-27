@@ -50,6 +50,7 @@ DEFINE_bool(use_local_parameterization, false, "For quaternions, use a local "
             "parameterization.");
 
 DEFINE_int32(num_lines, -1, "Number of data lines to consider.");
+DEFINE_int32(line_step, -1, "Number of data lines to consider per iteration.");
 DEFINE_int32(num_threads, 1, "Number of threads.");
 DEFINE_int32(num_iterations, 100, "Number of iterations.");
 DEFINE_double(max_solver_time, 1e32, "Maximum solve time in seconds.");
@@ -70,11 +71,16 @@ namespace cerise{
             class DisplayCallback: public ceres::IterationCallback { 
                 protected:
                     OptimiseRotation & problem;
+                    size_t startLine, endLine;
                 public: 
                     DisplayCallback(OptimiseRotation & p) : problem(p) {}
+                    void setLines(size_t start,size_t end) {
+                        startLine = start;
+                        endLine = end;
+                    }
                     virtual ceres::CallbackReturnType operator()(const 
                             ceres::IterationSummary& summary) { 
-                        problem.reportProgress(true);
+                        problem.reportProgress(startLine,endLine,true);
                         // if (FLAGS_interactive) {
                         //     getchar();
                         // }
@@ -87,9 +93,10 @@ namespace cerise{
             typedef std::map<double,GPSLine> GPSMap; 
             GPSMap gpslines; 
             OptimisedOrientationSequence oos;
+            std::string filename;
 
 
-            Problem problem;
+            Problem *problem;
             void SetLinearSolver(Solver::Options* options) {
                 CHECK(StringToLinearSolverType(FLAGS_linear_solver,
                             &options->linear_solver_type));
@@ -141,29 +148,66 @@ namespace cerise{
             }
 
         public:
-            OptimiseRotation() : display(*this) {}
+            OptimiseRotation() : display(*this), problem(NULL) {}
 
-            void optimise() {
+            void optimise(size_t startLine, size_t endLine) {
+                assert(problem);
                 Solver::Options options;
                 SetMinimizerOptions(&options);
                 SetLinearSolver(&options);
                 Solver::Summary summary;
-                Solve(options, &problem, &summary);
+                Solve(options, problem, &summary);
                 std::cout << summary.FullReport() << "\n";
                 if (!FLAGS_output.empty()) {
                     oos.save(FLAGS_output);
                 }
-                reportProgress();
+                reportProgress(startLine,endLine);
                 // sleep(3);
             }
+            bool loadGPS(const char *gps, int lineLimit=-1) {
+                gpslines.clear();
+                FILE * fp = fopen(gps,"r");
+                if (!fp) {
+                    LOG(ERROR) << "Couldn't load gps file '" << gps << "'\n";
+                    return false;
+                }
+                unsigned int target = 500000;
+                while (!feof(fp)) {
+                    char line[4096] = {0,};
+                    if (fgets(line,4095, fp)!= NULL) {
+                        if ((lineLimit>0) && ((signed)gpslines.size() >= lineLimit)) {
+                            break;
+                        }
+                        GPSLine dl;
+                        if (dl.load(line)) {
+                            gpslines.insert(GPSMap::value_type(dl.timestamp,dl));
+                        }
+                        if (gpslines.size() >= target) {
+                            printf("GPS: Loaded %d lines\n",(int)gpslines.size());
+                            target += 500000;
+                        }
+                    }
+                }
+                fclose(fp);
+                printf("Finished loading %d gps lines\n",(int)gpslines.size());
+                assert(gpslines.size() >= 2);
+                return true;
+            }
 
-            bool load(const char * filename, const char *gps, int lineLimit=-1) {
+            bool load(const char * _filename, const char *gps, int lineLimit=-1) {
+                filename = _filename;
                 lines.clear();
-                FILE * fp = fopen(filename,"r");
+                FILE * fp = fopen(_filename,"r");
+                unsigned int target = 500000;
                 while (!feof(fp)) {
                     if ((lineLimit>0) && ((signed)lines.size() >= lineLimit)) {
                         break;
                     }
+                    if (lines.size() >= target) {
+                        printf("Data: Loaded %d lines\n",(int)lines.size());
+                        target += 500000;
+                    }
+                        
                     char line[4096] = {0,};
                     std::vector<double> dline;
                     if (fgets(line,4095, fp)!= NULL) {
@@ -180,7 +224,7 @@ namespace cerise{
                     }
                 }
                 fclose(fp);
-                printf("Loaded %d lines\n",(int)lines.size());
+                printf("Finished loading %d data lines\n",(int)lines.size());
                 // prepare a map between dive_ids and variable numbers
                 std::map<size_t,size_t> dive_ids;
                 for (size_t i=0;i<lines.size();i++) {
@@ -190,34 +234,31 @@ namespace cerise{
                 }
 
 #if 1
-                fp = fopen(gps,"r");
-                if (!fp) {
-                    LOG(ERROR) << "Couldn't load gps file '" << gps << "'\n";
+                if (!loadGPS(gps,lineLimit)) {
                     return false;
                 }
-                while (!feof(fp)) {
-                    char line[4096] = {0,};
-                    if (fgets(line,4095, fp)!= NULL) {
-                        GPSLine dl;
-                        if (dl.load(line)) {
-                            gpslines.insert(GPSMap::value_type(dl.timestamp,dl));
-                        }
-                    }
-                }
-                fclose(fp);
-                printf("Loaded %d gps lines\n",(int)gpslines.size());
-                assert(gpslines.size() >= 2);
 #endif
+                return true;
+            }
+
+            size_t numLines() {
+                return lines.size();
+            }
+
+            bool createProblem(size_t beginLine, size_t endLine) {
+                delete problem;
+                problem = new Problem();
+                display.setLines(beginLine,endLine);
 
                 LocalParameterization* quaternion_parameterization = NULL;
-                oos.initialise(filename, lines);
+                oos.initialise(filename, lines, beginLine, endLine);
                 if (oos.use_quaternions && FLAGS_use_local_parameterization) {
                     quaternion_parameterization = new QuaternionParameterization;
                 }
-                for (size_t i=0;i<lines.size();i++) {
+                for (size_t i=beginLine;i<std::min<size_t>(endLine,lines.size());i++) {
                     DataLine & dl(lines[i]);
                     const GPSLine & gps = getClosestGPSFix(dl.timestamp);
-                    OptimisedOrientation & oo(oos.states[i]);
+                    OptimisedOrientation & oo(oos.states[i-beginLine]);
 
                     LossFunction* loss_function;
                     CostFunction *cost_function;
@@ -235,7 +276,7 @@ namespace cerise{
                         cost_function = new AutoDiffCostFunction<cerise::AccelerometerError,3,4,3,1>(
                                 new cerise::AccelerometerError(dl.depth,dl.a[0],dl.a[1],dl.a[2], 100.0));
                     }
-                    problem.AddResidualBlock(cost_function,loss_function,oos.common_parameters, 
+                    problem->AddResidualBlock(cost_function,loss_function,oos.common_parameters, 
                             oo.rotation,oo.propulsion);
 
                     // Magnetic field
@@ -254,35 +295,75 @@ namespace cerise{
                                 new cerise::MagnetometerError(dl.m[0],dl.m[1],dl.m[2], 
                                     gps.B[0],gps.B[1],gps.B[2], 0.001));
                     }
-                    problem.AddResidualBlock(cost_function,loss_function,oos.common_parameters, oo.rotation);
+                    problem->AddResidualBlock(cost_function,loss_function,oos.common_parameters, oo.rotation);
 
-                    if (i>0) {
+                    if (i-beginLine>0) {
                         // Smoothness constraint
                         cost_function = new AutoDiffCostFunction<cerise::SmoothnessConstraint,1,1,1>(
                                 new cerise::SmoothnessConstraint(5e1));
-                        problem.AddResidualBlock(cost_function,NULL,oos.states[i-1].propulsion, oo.propulsion);
+                        problem->AddResidualBlock(cost_function,NULL,oos.states[i-beginLine-1].propulsion, oo.propulsion);
                     }
                     if (oos.use_quaternions && FLAGS_use_local_parameterization) {
-                        problem.SetParameterization(oo.rotation, quaternion_parameterization);
+                        problem->SetParameterization(oo.rotation, quaternion_parameterization);
                     }
                 }
                 if (FLAGS_interactive) {
-                    reportProgress();
+                    reportProgress(beginLine,endLine);
+                    printf("Press enter to start\n");
                     getchar();
                 }
                 return true;
             }
 
-#if 1
-
-            virtual void reportProgress(bool intermediate=false) {
-                oos.save("X");
-                FILE *fa = fopen("Ap","w"), *fb = fopen("Bp","w");
-                for (size_t i=0;i<lines.size();i++) {
+            void saveState(long long unsigned int startLine, long long unsigned int endLine) {
+                char buffer[1024];
+                sprintf(buffer,"X%08llu",startLine);
+                oos.save(buffer);
+                sprintf(buffer,"Ap%08llu",startLine);
+                FILE *fa = fopen(buffer,"w");
+                sprintf(buffer,"Bp%08llu",startLine);
+                FILE *fb = fopen(buffer,"w");
+                for (size_t i=startLine;i<endLine;i++) {
                     DataLine & dl(lines[i]);
-                    OptimisedOrientation & oo(oos.states[i]);
+                    OptimisedOrientation & oo(oos.states[i-startLine]);
                     double As[3], Ap[3], Bs[3], Bp[3];
                     double t = (dl.timestamp - lines[0].timestamp)*24*3600;
+                    if (oos.use_quaternions) {
+                        for (size_t j=0;j<3;j++) {
+                            As[j] = dl.a[j];
+                            Bs[j] = dl.m[j] * oos.Bscale[j];
+                        }
+                        As[0] -= oo.propulsion[0]; // remove propulsion
+                        QuaternionRotatePoint(oo.rotation,As,Ap);
+                        Ap[2] -= oos.Kdepth[0]*dl.depth;
+                        QuaternionRotatePoint(oo.rotation,Bs,Bp);
+                    } else {
+                        for (size_t j=0;j<3;j++) {
+                            As[j] = dl.a[j];
+                            Bs[j] = dl.m[j] * oos.Bscale[j];
+                        }
+                        As[0] -= oo.propulsion[0]; // remove propulsion
+                        AngleAxisRotatePoint(oo.rotation,As,Ap);
+                        Ap[2] -= oos.Kdepth[0]*dl.depth;
+                        AngleAxisRotatePoint(oo.rotation,Bs,Bp);
+                    }
+
+                    fprintf(fa,"%e %e %e %e\n",t,Ap[0],Ap[1],Ap[2]);
+                    fprintf(fb,"%e %e %e %e\n",t,Bp[0],Bp[1],Bp[2]);
+                }
+                fclose(fa); fclose(fb); 
+            }
+
+#if 1
+
+            virtual void reportProgress(long long unsigned int startLine, long long unsigned int endLine, bool intermediate=false) {
+                oos.save("X");
+                FILE *fa = fopen("Ap","w"), *fb = fopen("Bp","w");
+                for (size_t i=startLine;i<endLine;i++) {
+                    DataLine & dl(lines[i]);
+                    OptimisedOrientation & oo(oos.states[i-startLine]);
+                    double As[3], Ap[3], Bs[3], Bp[3];
+                    double t = (dl.timestamp - lines[startLine].timestamp)*24*3600;
                     if (oos.use_quaternions) {
                         for (size_t j=0;j<3;j++) {
                             As[j] = dl.a[j];
@@ -312,8 +393,7 @@ namespace cerise{
                     G.plot("plot \"Bp\" u 1:2 w l, \"Bp\" u 1:3 w l, \"Bp\" u 1:4 w l");
                     if (!intermediate) {
                         G.plot("set terminal x11 3;set grid");
-                        int n = FLAGS_num_lines;
-                        if (n <= 0) n = lines.size();
+                        int n = oos.states.size();
                         int depth_col=9;
                         if (FLAGS_raw) {
                             depth_col=3;
@@ -347,10 +427,20 @@ int main(int argc, char *argv[])
     cerise::OptimiseRotation problem;
 
     problem.load(FLAGS_input.c_str(),FLAGS_gps.c_str(),FLAGS_num_lines);
+    if (FLAGS_line_step < 0) {FLAGS_line_step = problem.numLines();}
+    if (FLAGS_num_lines < 0) {FLAGS_num_lines = problem.numLines();}
+    FLAGS_num_lines = std::min<size_t>(problem.numLines(),FLAGS_num_lines);
 
-    problem.optimise();
-    if (FLAGS_interactive) {
-        getchar();
+    for (size_t startLine=0;startLine < (size_t)FLAGS_num_lines; startLine += FLAGS_line_step) { 
+        size_t lastLine = std::min<size_t>(FLAGS_num_lines,startLine+FLAGS_line_step);
+        printf("Starting optimisation in [%d,%d]\n",(int)startLine,(int)lastLine);
+        problem.createProblem(startLine,lastLine);
+        problem.optimise(startLine,lastLine);
+        problem.saveState(startLine,lastLine);
+        if (FLAGS_interactive) {
+            printf("Optimisation [%d,%d] complete\n",(int)startLine,(int)lastLine);
+            getchar();
+        }
     }
 
     return 0;

@@ -246,7 +246,7 @@ OptimisedOrientationSequence::OptimisedOrientationSequence(const OptimisedOrient
     states = oos.states;
 }
 
-void OptimisedOrientationSequence::initialise(const std::string & source_file, const std::vector<DataLine> & lines) 
+void OptimisedOrientationSequence::initialise(const std::string & source_file, const std::vector<DataLine> & lines, size_t begin, size_t end) 
 {
     input_file = source_file;
     use_quaternions = FLAGS_use_quaternions;
@@ -255,8 +255,8 @@ void OptimisedOrientationSequence::initialise(const std::string & source_file, c
     Bscale[2] = 1.0;
     Kdepth[0] = 2.0/600.0;
     states.clear();
-    double r = lines[0].rpy[0]*M_PI/180.;
-    double p = lines[0].rpy[1]*M_PI/180.;
+    double r = lines[begin].rpy[0]*M_PI/180.;
+    double p = lines[begin].rpy[1]*M_PI/180.;
     Eigen::Matrix3f roll; roll << 
         1, 0, 0,
         0, cos(r), sin(r),
@@ -265,13 +265,13 @@ void OptimisedOrientationSequence::initialise(const std::string & source_file, c
          cos(p), 0, -sin(p),
         0, 1, 0,
         sin(p), 0, cos(p);
-    Eigen::Vector3f M; M << lines[0].m[0],lines[0].m[1],lines[0].m[2];
+    Eigen::Vector3f M; M << lines[begin].m[0],lines[begin].m[1],lines[begin].m[2];
     Eigen::Vector3f Mr = pitch * roll * M;
     MagField[0] = Mr(0);
     MagField[1] = Mr(1);
     MagField[2] = Mr(2);
     
-    for (size_t i=0;i<lines.size();i++) {
+    for (size_t i=begin;i<end;i++) {
         const DataLine & dl(lines[i]);
         OptimisedOrientation oo;
         double mat[9] = {1,0,0,0,1,0,0,0,1};
