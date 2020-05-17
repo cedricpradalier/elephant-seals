@@ -68,7 +68,7 @@ struct FFTPlan {
         clear();
         double mean = 0;
         for (size_t i=0;i<data.size();i++) {
-            in[i] = data[i].An();
+            in[i] = data[i].A[1];
             mean += in[i];
         }
         mean /= data.size();
@@ -373,7 +373,7 @@ int main(int argc, char * argv[]) {
         
     }
 
-#if 0
+#if 1
     printf("Generating FFTs: %d climbs\n",int(DataSegments[CLIMB].size()));
     size_t max_climb_size = 0;
     for (size_t i=0;i<DataSegments[CLIMB].size();i++) {
