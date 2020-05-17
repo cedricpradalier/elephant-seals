@@ -24,11 +24,11 @@ const int CLIMB=4;
 const int DRIFT=5;
 
 struct DataPoint {
-    float t;
+    double t;
     float A[3];
     float P, dP;
     DataPoint() {}
-    DataPoint(float l[5]) {
+    DataPoint(double l[5]) {
         t=l[0];
         A[0]=l[1];
         A[1]=l[2];
@@ -68,7 +68,7 @@ struct FFTPlan {
         clear();
         double mean = 0;
         for (size_t i=0;i<data.size();i++) {
-            in[i] = data[i].An();
+            in[i] = data[i].A[1];
             mean += in[i];
         }
         mean /= data.size();
@@ -99,13 +99,17 @@ struct Segment {
         for (size_t i=start;i<=end;i++) {
             data.push_back(all[i]);
         }
+	assert(data[1].t > data[0].t);
     }
 
     void computeFFT(FFTPlan & P) {
         assert(data.size() <= P.N);
         P.execute(data);
         fft = cv::Mat_<float>(P.N,5,0.0);
-        float dt = (data[1].t-data[0].t)*P.N;
+        float dt = (data[1].t-data[0].t);
+	assert((dt > 0) && (dt < 1));
+	dt *= P.N;
+	// printf("Sampling %.2f freq step %.3f\n",(data[1].t-data[0].t),dt);
         for (size_t i=0;i<P.N;i++) {
             fft(i,0) = i/dt;
             fft(i,1) = P.in[i];
@@ -180,11 +184,26 @@ int main(int argc, char * argv[]) {
         if (fgets(buffer,1024,fp)==NULL) {
             continue;
         }
-        float l[5];
+        double l[5];
+#if 0
         if (sscanf(buffer," %e , %e , %e , %e , %e ",l+0,l+1,l+2,l+3,l+4) != 5) {
             printf("Rejecting '%s'\n",buffer);
             continue;
         }
+#else
+	long int v[5]={0,0,0,0,0};
+        if (sscanf(buffer," %ld %ld %ld %ld %ld ",v+0,v+1,v+2,v+3,v+4) != 5) {
+            printf("Rejecting '%s'\n",buffer);
+            continue;
+        }
+	for (int i=0;i<5;i++) {
+		l[i] = double(v[i]/100) + (v[i]%100)/100.0;
+	}
+	l[4] = -l[4];
+	if (data.size()>0) {
+		assert(l[0] > data[data.size()-1].t);
+	}
+#endif
         data.push_back(DataPoint(l));
     }
     fclose(fp);
@@ -373,7 +392,7 @@ int main(int argc, char * argv[]) {
         
     }
 
-#if 0
+#if 1
     printf("Generating FFTs: %d climbs\n",int(DataSegments[CLIMB].size()));
     size_t max_climb_size = 0;
     for (size_t i=0;i<DataSegments[CLIMB].size();i++) {
@@ -401,7 +420,23 @@ int main(int argc, char * argv[]) {
     // cv::normalize(spectrogram,spectro8b,255,0,cv::NORM_L2,CV_8UC1);
     // cv::imwrite("spectrogram.png",spectro8b);
     fp = fopen("output/spectro.dat","w");
+    fprintf(fp,"0 ");
+    for (int i=0;i<spectrogram.cols;i++) {
+        size_t j = DataSegments[CLIMB][i];
+	fprintf(fp,"%.2f ",seg[j].depthMax());
+    }
+    fprintf(fp,"\n");
+    fprintf(fp,"0 ");
+    for (int i=0;i<spectrogram.cols;i++) {
+        size_t j = DataSegments[CLIMB][i];
+	fprintf(fp,"%.2f ",seg[j].data[0].t);
+    }
+    fprintf(fp,"\n");
     for (int i=0;i<spectrogram.rows;i++) {
+        size_t j = DataSegments[CLIMB][0];
+	double f = seg[j].fft(i,0);
+	if (f>2) break;
+	fprintf(fp,"%.3e ",f);
         for (int j=0;j<spectrogram.cols;j++) {
             fprintf(fp,"%.3e ", spectrogram(i,j));
         }
@@ -425,11 +460,11 @@ int main(int argc, char * argv[]) {
 
     fp=fopen("output/seg.csv","w");
     for (size_t i=0;i<seg.size();i++) {
-        fprintf(fp,"%lu %lu %lu %d %d %.1f %.2f %.1f %.2f\n",
+        fprintf(fp,"%lu %lu %lu %d %d %.1f %.2f %.1f %.2f %.2f\n",
                 seg[i].start+1,seg[i].end+1,seg[i].length,
                 seg[i].label,seg[i].state,
                 data[seg[i].start].t, data[seg[i].start].P,
-                data[seg[i].end].t, data[seg[i].end].P);
+                data[seg[i].end].t, data[seg[i].end].P,seg[i].depthMax());
     }
     fclose(fp);
 
