@@ -1,0 +1,118 @@
+\documentclass[a4paper]{article}
+%\usepackage{a4wide}
+\usepackage{graphicx}
+\usepackage[left=2cm, right=2cm, top=1cm, bottom=2cm]{geometry}
+
+\usepackage{color}
+\definecolor{urlColor}{rgb}{0.0,0.0,0.7}
+\usepackage[linkcolor=blue,urlcolor=urlColor,colorlinks=true]{hyperref}
+
+\title{Elephant-seals dive behaviours: a summary}
+\author{Cedric Pradalier}
+
+\newcommand{\individual}[1]{
+    \newpage
+    \section{Individual: #1}
+    \subsection{Dive models}
+    \begin{center}
+        \includegraphics[width=\linewidth]{../output.#1/divemodel2d.png}
+
+        \includegraphics[width=0.8\linewidth]{../output.#1/divemodel3d.png}
+    \end{center}
+
+    \newpage
+    \subsection{Climb spectrogram}
+    \begin{center}
+        \includegraphics[width=0.8\linewidth]{../output.#1/climb_spectro.png}
+    \end{center}
+
+    \subsection{Climb properties correlations}
+    \begin{center}
+        \includegraphics[width=0.48\linewidth]{../output.#1/climb_depth2period.png}
+        \includegraphics[width=0.48\linewidth]{../output.#1/climb_depth2power.png}
+
+        \includegraphics[width=0.8\linewidth]{../output.#1/climb_depthtime2power.png}
+    \end{center}
+
+    \subsection{Climb properties over time}
+    \begin{center}
+        Dive depth\\
+        \includegraphics[width=\linewidth]{../output.#1/climb_t2maxP.png}
+
+        Frequency standard deviation\\
+        \includegraphics[width=\linewidth]{../output.#1/climb_t2stdf.png}
+
+        FFT power\\
+        \includegraphics[width=\linewidth]{../output.#1/climb_t2power.png}
+
+        Normalised FFT power\\
+        \includegraphics[width=\linewidth]{../output.#1/climb_t2normpower.png}
+    \end{center}
+
+    \newpage
+    \subsection{Dive spectrogram}
+    \begin{center}
+        \includegraphics[width=0.8\linewidth]{../output.#1/dive_spectro.png}
+    \end{center}
+
+    \subsection{Dive properties over time}
+    \begin{center}
+        Dive depth\\
+        \includegraphics[width=\linewidth]{../output.#1/dive_t2maxP.png}
+
+        Frequency standard deviation\\
+        \includegraphics[width=\linewidth]{../output.#1/dive_t2stdf.png}
+
+        FFT power\\
+        \includegraphics[width=\linewidth]{../output.#1/dive_t2power.png}
+
+        Normalised FFT power\\
+        \includegraphics[width=\linewidth]{../output.#1/dive_t2normpower.png}
+    \end{center}
+
+
+
+}
+
+
+
+\begin{document}
+\maketitle
+\setcounter{tocdepth}{1}
+\tableofcontents
+
+\individual{ml17301}
+\individual{ml18294}
+\individual{2017-26-14622}
+\individual{2017-29-14331}
+\individual{2018-32-14875}
+\individual{2018-33-14873}
+\individual{2018-34-14879}
+\individual{2018-37-14876}
+\individual{2018-38-14881}
+\individual{2018-39-14874}
+\individual{2018-40-14878}
+\individual{2018-41-14686}
+\individual{2018-43-14781}
+\individual{2018-44-14904}
+\individual{2018-45-14900}
+\individual{2018-46-14901}
+\individual{2018-47-14905}
+\individual{2018-48-14676}
+\individual{2018-50-14899}
+\individual{2018-51-14902}
+\individual{2019-02-14899}
+\individual{2019-03-14902}
+\individual{2019-04-14903}
+\individual{2019-05-14901}
+\individual{2019-12-14943}
+\individual{2019-14-14873}
+\individual{2019-15-14876}
+\individual{2019-17-14875}
+\individual{2019-19-15061}
+\individual{2019-20-14878}
+\individual{2019-21-14881}
+\individual{2019-23-14905}
+\individual{2019-24-15051}
+
+\end{document}
