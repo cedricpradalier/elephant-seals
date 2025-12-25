@@ -6,8 +6,10 @@ indivlist{1,1}=[ '2017-26-14622'; '2017-29-14331'; '2018-32-14875'; '2018-33-148
 '2019-02-14899'; '2019-03-14902'; '2019-04-14903'; '2019-05-14901'; '2019-14-14873'; '2019-15-14876'; '2019-17-14875'; '2019-19-15061'; '2019-20-14878';...
 '2019-21-14881'; '2019-23-14905'; '2019-24-15051'; '2019-12-14943' ; '2018-39-14874'];
 indivlist{1,2}=['ml17301';'ml18294'];
+indivlist{1,3}=['15734_inter'];
 
-for ic=1:size(indivlist,2)
+% for ic=1:size(indivlist,2)
+for ic=3:3
 	for i=1:size(indivlist{1,ic},1)
 		close all
 		individual=indivlist{1,ic}(i,:)
@@ -293,7 +295,7 @@ for ic=1:size(indivlist,2)
 		imagesc(t/86400,f(ifreq),Ssf)
 		xlabel('t (j)')
 		ylabel('f (Hz)')
-		title(sprintf('Individual %s Climb spectrogram',individual))
+		title(sprintf('Individual %s Dive spectrogram',individual))
 		print([dir '/dive_spectro.png'],'-dpng')
 		% Correlation between frequency power and max depth
 		clf
