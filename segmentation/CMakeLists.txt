@@ -8,7 +8,7 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 #set the default path for built libraries to the "lib" directory
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
-SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g -ggdb -O3 -Wall")
+SET(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -g -ggdb -O0 -Wall")
 
 find_package(OpenCV REQUIRED)
 
@@ -30,7 +30,7 @@ include_directories(include ${OpenCV_INCLUDE_DIR} ${FFTW_INCLUDE_DIR})
 
 # add the executable
 add_executable(segment_labels src/segment_labels.cpp)
-target_link_libraries(segment_labels m ${OpenCV_LIBRARIES}  ${FFTW3_LIBRARY})
+target_link_libraries(segment_labels m ${OpenCV_LIBRARIES}  ${FFTW3_LIBRARY} pthread m)
 
 add_executable(segment_sm src/statemachine.cpp)
 target_link_libraries(segment_sm m)
