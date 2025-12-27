@@ -5,6 +5,7 @@ for i=1:size(filelist,1)
 	filename=filelist(i,:)
 	A=load([filename '.txt']);
 	A(:,1) = A(:,1) - A(1,1);
+	A(:,2:4) = 10*A(:,2:4);
 	Aint=int32(A*100);
 	disp 'finished loading'
 	fid = fopen([filename '.csv'],'wt');
