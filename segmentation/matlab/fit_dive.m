@@ -8,9 +8,16 @@ indivlist{1,1}=[ '2017-26-14622'; '2017-29-14331'; '2018-32-14875'; '2018-33-148
 indivlist{1,2}=['ml17301';'ml18294'];
 indivlist{1,3}=['15734-inter'];
 
-% for ic=1:size(indivlist,2)
-for ic=3:3
+outcomes=[];
+
+s = fittype('a/(1+exp(-b*(x-c))) + d', 'Coefficients',{'a','b','c','d'}, 'Independent','x', 'Dependent','y');
+
+% for ic=3:3
+for ic=1:size(indivlist,2)
 	for i=1:size(indivlist{1,ic},1)
+		outcomeh=[]
+		outcome=[]
+
 		close all
 		individual=indivlist{1,ic}(i,:)
 		% dives=load('ml18_294dsens5.dives');
@@ -41,16 +48,20 @@ for ic=3:3
 		D1=A1\B;
 		err = A1*D1-B;
 		disp('A0: quadratic RMSE')
-		sqrt(sum(err.^2))
-		1 - mean(err.^2)/var(P0)
+		ssd = sqrt(sum(err.^2))
+		r2 = 1 - mean(err.^2)/var(P0)
+		outcomeh= [outcomeh ones(size(D1')) 1 1];
+		outcome = [outcome D1' ssd r2];
 
 		A2=[ones(size(idx0)) t0 ];
 		B=P0;
 		D2=A2\B;
 		err = A2*D2-B;
 		disp('A0: linear RMSE')
-		sqrt(sum(err.^2))
-		1 - mean(err.^2)/var(P0)
+		ssd = sqrt(sum(err.^2))
+		r2 = 1 - mean(err.^2)/var(P0)
+		outcome = [outcome D2' ssd r2];
+		outcomeh= [outcomeh ones(size(D2'))*2 2 2];
 
 		segd=seg(find((seg(:,5)==5).*((seg(:,9)-seg(:,7))>180.)),:);
 		ts=segd(:,7)/86400;
@@ -82,48 +93,50 @@ for ic=3:3
 		C1=A\B;
 		err = A*C1-B;
 		disp('time only RMSE')
-		sqrt(sum(err.^2))
-		1 - mean(err.^2)/var(P)
+		ssd = sqrt(sum(err.^2))
+		r2 = 1 - mean(err.^2)/var(P)
 
 		A=[ones(size(idx)) t a];
 		B=P;
 		C2=A\B;
 		err = A*C2-B;
 		disp('linear RMSE')
-		sqrt(sum(err.^2))
-		1 - mean(err.^2)/var(P)
+		ssd = sqrt(sum(err.^2))
+		r2 = 1 - mean(err.^2)/var(P)
+		outcome = [outcome C2' ssd r2];
+		outcomeh= [outcomeh ones(size(C2'))*3 3 3];
 
 		A=[ones(size(idx)) t a t.*t];
 		B=P;
 		C3=A\B;
 		err = A*C3-B;
 		disp('a-linear t-quadratic RMSE')
-		sqrt(sum(err.^2))
-		1 - mean(err.^2)/var(P)
+		ssd = sqrt(sum(err.^2))
+		r2 = 1 - mean(err.^2)/var(P)
 
 		A=[ones(size(idx)) t a a.*a];
 		B=P;
 		C4=A\B;
 		err = A*C4-B;
 		disp('t-linear a-quadratic RMSE')
-		sqrt(sum(err.^2))
-		1 - mean(err.^2)/var(P)
+		ssd = sqrt(sum(err.^2))
+		r2 = 1 - mean(err.^2)/var(P)
 
 		A=[ones(size(idx)) t a a.^a t.*t];
 		B=P;
 		C5=A\B;
 		err = A*C5-B;
 		disp('independent quadratic RMSE')
-		sqrt(sum(err.^2))
-		1 - mean(err.^2)/var(P)
+		ssd = sqrt(sum(err.^2))
+		r2 = 1 - mean(err.^2)/var(P)
 
 		A=[ones(size(idx)) t a a.^a t.*t a.*t];
 		B=P;
 		C6=A\B;
 		err = A*C6-B;
 		disp('quadratic RMSE')
-		sqrt(sum(err.^2))
-		1 - mean(err.^2)/var(P)
+		ssd = sqrt(sum(err.^2))
+		r2 = 1 - mean(err.^2)/var(P)
 
 		[Gt,Ga]=meshgrid(lt,la);
 		gt=reshape(Gt,prod(size(Gt)),1);
@@ -198,8 +211,10 @@ for ic=3:3
 		X=A\B;
 		err = A*X-B;
 		disp('Linear relation between max(Ssf) and (t,maxP)')
-		sqrt(sum(err.^2))
-		1 - mean(err.^2)/var(B)
+		ssd = sqrt(sum(err.^2))
+		r2 = 1 - mean(err.^2)/var(B)
+		outcome = [outcome X' ssd r2];
+		outcomeh= [outcomeh ones(size(X'))*4 4 4];
 
 		lt=linspace(min(t/86400),max(t/86400),20)';
 		lP=linspace(0,max(-maxP),20);
@@ -251,9 +266,16 @@ for ic=3:3
 		idx=find(-maxP>200);
 		lt=linspace(0,max(t)/86400,20)';
 		A=[ones(size(idx))' t(idx)'/86400]; B=max(Ssf(:,idx))./(-maxP(idx));
-		X=A\B';
-		lB=[ones(size(lt)) lt]*X;
-		plot(t(idx)/86400,max(Ssf(:,idx))./(-maxP(idx)),'.k',lt,lB,'-g','linewidth',2)
+		Bs = smoothdata(B',"Gaussian",3,"SamplePoints",t(idx)'/86400);
+		% X=A\B';
+		fX=fit(t(idx)'/86400,Bs,s,'StartPoint', [max(Bs)-min(Bs),0,max(t(idx)/86400)/2,min(Bs)])
+		X=[fX.a,fX.b,fX.c,fX.d];
+		outcome = [outcome X];
+		outcomeh= [outcomeh ones(size(X))*5];
+		%lB=[ones(size(lt)) lt]*X;
+		lB=fX(lt)
+		plot(t(idx)/86400,max(Ssf(:,idx))./(-maxP(idx)),'.k',...
+			t(idx)/86400,Bs,'-b',lt,lB,'-g','linewidth',2)
 		set(gcf,'PaperUnits','inches','PaperPosition',[0 0 60 10])
 		ylabel('fft power/maxP')
 		xlabel('t (j)')
@@ -319,8 +341,10 @@ for ic=3:3
 		X=A\B;
 		err = A*X-B;
 		disp('Linear relation between max(Ssf) and (t,maxP)')
-		sqrt(sum(err.^2))
-		1 - mean(err.^2)/var(B)
+		ssd = sqrt(sum(err.^2))
+		r2 = 1 - mean(err.^2)/var(B)
+		outcome = [outcome X' ssd r2];
+		outcomeh= [outcomeh ones(size(X'))*6 6 6];
 
 		lt=linspace(min(t/86400),max(t/86400),20)';
 		lP=linspace(0,max(-maxP),20);
@@ -372,9 +396,19 @@ for ic=3:3
 		idx=find(-maxP>200);
 		lt=linspace(0,max(t)/86400,20)';
 		A=[ones(size(idx))' t(idx)'/86400]; B=max(Ssf(:,idx))./(-maxP(idx));
-		X=A\B';
-		lB=[ones(size(lt)) lt]*X;
-		plot(t(idx)/86400,max(Ssf(:,idx))./(-maxP(idx)),'.k',lt,lB,'-g','linewidth',2)
+		% X=A\B';
+		% lB=[ones(size(lt)) lt]*X;
+		% outcome = [outcome X'];
+		% outcomeh= [outcomeh ones(size(X'))*7];
+		Bs = smoothdata(B',"Gaussian",3,"SamplePoints",t(idx)'/86400);
+		fX=fit(t(idx)'/86400,Bs,s,'StartPoint', [max(Bs)-min(Bs),0,max(t(idx)/86400)/2,min(Bs)])
+		X=[fX.a,fX.b,fX.c,fX.d];
+		lB=fX(lt);
+		outcome = [outcome X];
+		outcomeh= [outcomeh ones(size(X))*7];
+		% plot(t(idx)/86400,max(Ssf(:,idx))./(-maxP(idx)),'.k',lt,lB,'-g','linewidth',2)
+		plot(t(idx)/86400,max(Ssf(:,idx))./(-maxP(idx)),'.k',...
+			t(idx)/86400,Bs,'-b',lt,lB,'-g','linewidth',2)
 		set(gcf,'PaperUnits','inches','PaperPosition',[0 0 60 10])
 		ylabel('fft power/maxP')
 		xlabel('t (j)')
@@ -389,5 +423,8 @@ for ic=3:3
 
 		%disp('press enter to continue')
 		%pause
+		outcomes=[outcomes;outcome];
 	end
 end
+outcomes=[1:size(outcomes,2);outcomeh;outcomes];
+save('outcomes.csv','outcomes','-double','-ascii')
