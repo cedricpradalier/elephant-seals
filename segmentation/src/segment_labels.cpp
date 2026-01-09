@@ -1,4 +1,6 @@
 
+#include <pthread.h>
+
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -17,6 +19,8 @@
 #include <fftw3.h>
 
 
+const unsigned int MAXFFT = 5000;
+const unsigned int NTHREADS = 32;
 const int HUNT=1;
 const int SURFACE=2;
 const int DIVE=3;
@@ -67,12 +71,12 @@ struct FFTPlan {
     void execute(const std::vector<DataPoint> & data) {
         clear();
         double mean = 0;
-        for (size_t i=0;i<data.size();i++) {
+        for (size_t i=0;i<std::min(N,data.size());i++) {
             in[i] = data[i].A[1];
             mean += in[i];
         }
         mean /= data.size();
-        for (size_t i=0;i<data.size();i++) {
+        for (size_t i=0;i<std::min(N,data.size());i++) {
             in[i] -= mean;
         }
         fftw_execute(p); 
@@ -82,7 +86,7 @@ struct FFTPlan {
     
 
 struct Segment {
-    size_t start, end, length;
+    size_t start, end, length, diveid;
     int label;
     int state;
     std::vector<DataPoint> data;
@@ -94,6 +98,7 @@ struct Segment {
         length=l[2];
         label=l[3];
         state=l[4];
+	diveid=0;
     }
     void updateData(const std::vector<DataPoint> & all) {
         for (size_t i=start;i<=end;i++) {
@@ -103,7 +108,7 @@ struct Segment {
     }
 
     void computeFFT(FFTPlan & P) {
-        assert(data.size() <= P.N);
+        
         P.execute(data);
         fft = cv::Mat_<float>(P.N,5,0.0);
         float dt = (data[1].t-data[0].t);
@@ -149,6 +154,42 @@ double estimateDiveVelocity(const std::vector<DataPoint> & data,
     if (isnan(X(0,0))) return 0;
     return X(0,0);
 }
+
+struct ThreadContext {
+	pthread_mutex_t mutex;
+	size_t index;
+	std::vector<DataPoint> & data;
+
+	ThreadContext(std::vector<DataPoint> & data) : data(data) {
+		index = 0;
+		pthread_mutex_init(&mutex,NULL);
+	}
+	~ThreadContext() {
+		pthread_mutex_destroy(&mutex);
+	}
+
+	void run() {
+		while (1) {
+			size_t i = data.size();
+			pthread_mutex_lock(&mutex);
+			i = index;
+			index += 1;
+			pthread_mutex_unlock(&mutex);
+			if (i >= data.size()) {
+				break;
+			}
+			data[i].dP = estimateDiveVelocity(data,std::max<int>(0,int(i)-10),
+					std::min<int>(data.size()-1,int(i)+10));
+		}
+	}
+};
+
+void * thread_fun(void * arg) {
+	ThreadContext *context = (ThreadContext*)arg;
+	context->run();
+	return NULL;
+}
+
 
 int main(int argc, char * argv[]) {
     assert(argc>2);
@@ -201,7 +242,7 @@ int main(int argc, char * argv[]) {
 	}
 	l[4] = -l[4];
 	if (data.size()>0) {
-		assert(l[0] > data[data.size()-1].t);
+		assert(l[0] >= data[data.size()-1].t);
 	}
 #endif
         data.push_back(DataPoint(l));
@@ -212,10 +253,21 @@ int main(int argc, char * argv[]) {
 
     mkdir("output",0755);
 
+#if 1
+    pthread_t tid[NTHREADS];
+    ThreadContext context(data);
+    for (unsigned int i=0;i<NTHREADS;i++) {
+	    pthread_create(tid+i,NULL,thread_fun,&context);
+    }
+    for (unsigned int i=0;i<NTHREADS;i++) {
+	    pthread_join(tid[i],NULL);
+    }
+#else
     for (size_t i=0;i<data.size();i++) {
         data[i].dP = estimateDiveVelocity(data,std::max<int>(0,int(i)-10),
                 std::min<int>(data.size()-1,int(i)+10));
     }
+#endif
     printf("Computed velocity\n");
 
     Segment segment;
@@ -368,6 +420,7 @@ int main(int argc, char * argv[]) {
         }
     }
     seg.clear();
+    size_t dive_count = 0;
     segment.start=0;
     for (size_t i=1;i<labels.size();i++) {
         if (labels[i]!=labels[i-1]) {
@@ -375,13 +428,19 @@ int main(int argc, char * argv[]) {
             segment.length = segment.end-segment.start+1;
             segment.label = labels[i-1];
             segment.state = 0;
+	    segment.diveid = dive_count;
             seg.push_back(segment);
             segment.start=i;
+	    if (labels[i]==SURFACE) {
+		    dive_count += 1;
+	    }
+
         }
     }
     segment.end = labels.size()-1;
     segment.length = segment.end-segment.start+1;
     segment.label = labels[labels.size()-1];
+    segment.diveid = dive_count;
     seg.push_back(segment);
     
     typedef std::vector<size_t> IndexVector;
@@ -399,58 +458,114 @@ int main(int argc, char * argv[]) {
         size_t j = DataSegments[CLIMB][i];
         max_climb_size = std::max(max_climb_size,seg[j].data.size());
     }
-    FFTPlan plan(max_climb_size);
-    // cv::Mat_<float> spectroinput(plan.N,DataSegments[CLIMB].size(),0.0);
-    cv::Mat_<float> spectrogram(plan.N,DataSegments[CLIMB].size());
-    for (size_t i=0;i<DataSegments[CLIMB].size();i++) {
-        size_t j = DataSegments[CLIMB][i];
-        seg[j].computeFFT(plan);
-        if ((i%100)==0) {
-            printf("+");fflush(stdout);
-        }
-        for (int k=0;k<spectrogram.rows;k++) {
-            spectrogram(k,i) = seg[j].fft(k,4);
-        }
-        // for (int k=0;k<spectroinput.rows;k++) {
-        //     spectroinput(k,i) = seg[j].fft(k,1);
-        // }
+    max_climb_size = std::min<size_t>(max_climb_size,MAXFFT);
+    {
+	    FFTPlan plan(max_climb_size);
+	    // cv::Mat_<float> spectroinput(plan.N,DataSegments[CLIMB].size(),0.0);
+	    cv::Mat_<float> spectrogram(plan.N,DataSegments[CLIMB].size());
+	    for (size_t i=0;i<DataSegments[CLIMB].size();i++) {
+		    size_t j = DataSegments[CLIMB][i];
+		    seg[j].computeFFT(plan);
+		    if ((i%100)==0) {
+			    printf("+");fflush(stdout);
+		    }
+		    for (int k=0;k<spectrogram.rows;k++) {
+			    spectrogram(k,i) = seg[j].fft(k,4);
+		    }
+		    // for (int k=0;k<spectroinput.rows;k++) {
+		    //     spectroinput(k,i) = seg[j].fft(k,1);
+		    // }
+	    }
+	    printf("\n");
+	    fp = fopen("output/spectro_climb.dat","w");
+	    fprintf(fp,"0 ");
+	    for (int i=0;i<spectrogram.cols;i++) {
+		    size_t j = DataSegments[CLIMB][i];
+		    fprintf(fp,"%.2f ",seg[j].depthMax());
+	    }
+	    fprintf(fp,"\n");
+	    fprintf(fp,"0 ");
+	    for (int i=0;i<spectrogram.cols;i++) {
+		    size_t j = DataSegments[CLIMB][i];
+		    fprintf(fp,"%.2f ",seg[j].data[0].t);
+	    }
+	    fprintf(fp,"\n");
+	    // fprintf(fp,"0 ");
+	    // for (int i=0;i<spectrogram.cols;i++) {
+	    //         size_t j = DataSegments[CLIMB][i];
+	    //         fprintf(fp,"%lu ",seg[j].diveid);
+	    // }
+	    // fprintf(fp,"\n");
+	    for (int i=0;i<spectrogram.rows;i++) {
+		    size_t j = DataSegments[CLIMB][0];
+		    double f = seg[j].fft(i,0);
+		    if (f>2) break;
+		    fprintf(fp,"%.3e ",f);
+		    for (int j=0;j<spectrogram.cols;j++) {
+			    fprintf(fp,"%.3e ", spectrogram(i,j));
+		    }
+		    fprintf(fp,"\n");
+	    }
+	    fclose(fp);
     }
-    printf("\n");
-    // cv::Mat_<uint8_t> spectro8b;
-    // cv::normalize(spectrogram,spectro8b,255,0,cv::NORM_L2,CV_8UC1);
-    // cv::imwrite("spectrogram.png",spectro8b);
-    fp = fopen("output/spectro.dat","w");
-    fprintf(fp,"0 ");
-    for (int i=0;i<spectrogram.cols;i++) {
-        size_t j = DataSegments[CLIMB][i];
-	fprintf(fp,"%.2f ",seg[j].depthMax());
+#endif
+
+#if 1
+    printf("Generating FFTs: %d dive\n",int(DataSegments[DIVE].size()));
+    size_t max_dive_size = 0;
+    for (size_t i=0;i<DataSegments[DIVE].size();i++) {
+        size_t j = DataSegments[DIVE][i];
+        max_dive_size = std::max(max_dive_size,seg[j].data.size());
     }
-    fprintf(fp,"\n");
-    fprintf(fp,"0 ");
-    for (int i=0;i<spectrogram.cols;i++) {
-        size_t j = DataSegments[CLIMB][i];
-	fprintf(fp,"%.2f ",seg[j].data[0].t);
+    max_dive_size = std::min<size_t>(max_dive_size,MAXFFT);
+    {
+	    FFTPlan plan(max_dive_size);
+	    cv::Mat_<float> spectrogram(plan.N,DataSegments[DIVE].size());
+	    for (size_t i=0;i<DataSegments[DIVE].size();i++) {
+		    size_t j = DataSegments[DIVE][i];
+		    seg[j].computeFFT(plan);
+		    if ((i%100)==0) {
+			    printf("+");fflush(stdout);
+		    }
+		    for (int k=0;k<spectrogram.rows;k++) {
+			    spectrogram(k,i) = seg[j].fft(k,4);
+		    }
+		    // for (int k=0;k<spectroinput.rows;k++) {
+		    //     spectroinput(k,i) = seg[j].fft(k,1);
+		    // }
+	    }
+	    printf("\n");
+	    fp = fopen("output/spectro_dive.dat","w");
+	    fprintf(fp,"0 ");
+	    for (int i=0;i<spectrogram.cols;i++) {
+		    size_t j = DataSegments[DIVE][i];
+		    fprintf(fp,"%.2f ",seg[j].depthMax());
+	    }
+	    fprintf(fp,"\n");
+	    fprintf(fp,"0 ");
+	    for (int i=0;i<spectrogram.cols;i++) {
+		    size_t j = DataSegments[DIVE][i];
+		    fprintf(fp,"%.2f ",seg[j].data[0].t);
+	    }
+	    fprintf(fp,"\n");
+	    // fprintf(fp,"0 ");
+	    // for (int i=0;i<spectrogram.cols;i++) {
+	    //         size_t j = DataSegments[DIVE][i];
+	    //         fprintf(fp,"%lu ",seg[j].diveid);
+	    // }
+	    // fprintf(fp,"\n");
+	    for (int i=0;i<spectrogram.rows;i++) {
+		    size_t j = DataSegments[DIVE][0];
+		    double f = seg[j].fft(i,0);
+		    if (f>2) break;
+		    fprintf(fp,"%.3e ",f);
+		    for (int j=0;j<spectrogram.cols;j++) {
+			    fprintf(fp,"%.3e ", spectrogram(i,j));
+		    }
+		    fprintf(fp,"\n");
+	    }
+	    fclose(fp);
     }
-    fprintf(fp,"\n");
-    for (int i=0;i<spectrogram.rows;i++) {
-        size_t j = DataSegments[CLIMB][0];
-	double f = seg[j].fft(i,0);
-	if (f>2) break;
-	fprintf(fp,"%.3e ",f);
-        for (int j=0;j<spectrogram.cols;j++) {
-            fprintf(fp,"%.3e ", spectrogram(i,j));
-        }
-        fprintf(fp,"\n");
-    }
-    fclose(fp);
-    // fp = fopen("output/specin.dat","w");
-    // for (int i=0;i<spectroinput.rows;i++) {
-    //     for (int j=0;j<spectroinput.cols;j++) {
-    //         fprintf(fp,"%.3e ", spectroinput(i,j));
-    //     }
-    //     fprintf(fp,"\n");
-    // }
-    // fclose(fp);
 #endif
 
     
@@ -460,8 +575,8 @@ int main(int argc, char * argv[]) {
 
     fp=fopen("output/seg.csv","w");
     for (size_t i=0;i<seg.size();i++) {
-        fprintf(fp,"%lu %lu %lu %d %d %.1f %.2f %.1f %.2f %.2f\n",
-                seg[i].start+1,seg[i].end+1,seg[i].length,
+        fprintf(fp,"%lu %lu %lu %lu %d %d %.1f %.2f %.1f %.2f %.2f\n",
+                seg[i].diveid,seg[i].start+1,seg[i].end+1,seg[i].length,
                 seg[i].label,seg[i].state,
                 data[seg[i].start].t, data[seg[i].start].P,
                 data[seg[i].end].t, data[seg[i].end].P,seg[i].depthMax());
@@ -526,7 +641,7 @@ int main(int argc, char * argv[]) {
             if (data[j].A[2]<0) continue;
             if (data[j].A[2]>10) continue;
             if (data[j].dP>0) continue;
-            fprintf(fp,"%.2f %.3f %.3f\n",data[seg[i].start].t,
+            fprintf(fp,"%lu %.2f %.3f %.3f\n",seg[i].diveid,data[seg[i].start].t,
                     data[j].A[2],data[j].dP);
         }
     }

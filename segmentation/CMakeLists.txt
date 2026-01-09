@@ -30,7 +30,7 @@ include_directories(include ${OpenCV_INCLUDE_DIR} ${FFTW_INCLUDE_DIR})
 
 # add the executable
 add_executable(segment_labels src/segment_labels.cpp)
-target_link_libraries(segment_labels m ${OpenCV_LIBRARIES}  ${FFTW3_LIBRARY})
+target_link_libraries(segment_labels m ${OpenCV_LIBRARIES}  ${FFTW3_LIBRARY} pthread m)
 
 add_executable(segment_sm src/statemachine.cpp)
 target_link_libraries(segment_sm m)
