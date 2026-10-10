@@ -47,11 +47,17 @@ df_learn.dropna(axis=0, how='any', inplace=True)
 y=df_learn['masse'].values
 ym=y.mean()
 ystd=y.std()
+
+print("Normalization:")
+print("Weight: mean %.3f std %.3f" % (ym,ystd))
+
 y=(y-ym)/ystd
 
 X=df_learn[input_col].values
 Xm=X[:,:10].mean(axis=0)
 Xstd=X[:,:10].std(axis=0)
+for i in range(10):
+    print("%s: mean %.3f std %.3f"%(input_col[i],Xm[i],Xstd[i]))
 X[:,:10]=(X[:,:10]-Xm)/Xstd
 X=np.hstack([X,np.ones((X.shape[0],1))])
 
@@ -100,6 +106,7 @@ def fit():
     B=np.array([y_train]).T
     model=np.linalg.pinv(A) @ B
     bpmodels.append(model)
+    print("Model: weight="+" ".join([("%+.3f"%x[0])+"*"+name for x,name in zip(list(model[:-1]),input_col)])+" "+("%+.3f"%model[-1,0]))
     y_pred0=np.hstack([X_test,np.ones((X_test.shape[0],1))]) @ model
     y_pred0=y_pred0.flatten()
     pscore(y_test,y_pred0,"Linear all")
@@ -110,6 +117,7 @@ def fit():
     B=np.array([y_train[idxf]]).T
     model_female=np.linalg.pinv(A) @ B
     bpmodels.append(model_female)
+    print("Model Female: weight="+" ".join([("%+.3f"%x[0])+"*"+name for x,name in zip(list(model_female[:-1]),input_col)])+" "+("%+.3f"%model_female[-1,0]))
     idxf=np.where(X_test[:,10]==1)[0]
     y_pred0f=np.hstack([X_test[idxf,:],np.ones((idxf.shape[0],1))]) @ model_female
     y_pred0f=y_pred0f.flatten()
@@ -121,6 +129,7 @@ def fit():
     B=np.array([y_train[idxm]]).T
     model_male=np.linalg.pinv(A) @ B
     bpmodels.append(model_male)
+    print("Model Male: weight="+" ".join([("%+.3f"%x[0])+"*"+name for x,name in zip(list(model_male[:-1]),input_col)])+" "+("%+.3f"%model_male[-1,0]))
     idxm=np.where(X_test[:,10]==1)[0]
     y_pred0m=np.hstack([X_test[idxm,:],np.ones((idxm.shape[0],1))]) @ model_male
     y_pred0m=y_pred0m.flatten()
@@ -143,7 +152,7 @@ def fit():
     # print(score)
 
     print("DecisionTree model")
-    dt_regr = DecisionTreeRegressor(random_state=1,max_depth=32,criterion='mse')
+    dt_regr = DecisionTreeRegressor(random_state=1,max_depth=32,criterion='squared_error')
     dt_regr.fit(X_train, y_train)
     bpmodels.append(dt_regr)
     y_pred2=dt_regr.predict(X_test)
@@ -154,7 +163,7 @@ def fit():
     # print(score)
 
     print("RandomForest model")
-    rf_regr = RandomForestRegressor(max_depth=32, random_state=1, criterion='mse', n_jobs=16)
+    rf_regr = RandomForestRegressor(max_depth=32, random_state=1, criterion='squared_error', n_jobs=16)
     rf_regr.fit(X_train, y_train)
     bpmodels.append(rf_regr)
     y_pred3=rf_regr.predict(X_test)
